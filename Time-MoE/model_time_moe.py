@@ -45,9 +45,12 @@ os.environ["NCCL_P2P_DISABLE"] = "1"
 os.environ["NCCL_IB_DISABLE"] = "1"
 
 def objective(trial, df_train, y_test, df_mean, scaler, type_model, type_prediction, state, derivative):
-    lr = trial.suggest_categorical("lr", [1e-3, 1e-4, 5e-5, 1e-6, 1e-7])
-    epochs = trial.suggest_categorical("epochs", [5, 10, 20, 50, 80, 100])
-    global_batch_size = trial.suggest_categorical("global_batch_size", [16, 32, 64])
+    lr = trial.suggest_categorical("lr", [1e-6])
+    epochs = trial.suggest_categorical("epochs", [10, 20])
+    global_batch_size = trial.suggest_categorical("global_batch_size", [16, 32])
+    # lr = trial.suggest_categorical("lr", [1e-3, 1e-4, 5e-5, 1e-6, 1e-7])
+    # epochs = trial.suggest_categorical("epochs", [5, 10, 20, 50, 80, 100])
+    # global_batch_size = trial.suggest_categorical("global_batch_size", [16, 32, 64])
 
     tensor_train = torch.tensor(df_train, dtype=torch.float32)
     tensor_train = tensor_train.squeeze(-1).unsqueeze(0)
@@ -301,7 +304,7 @@ def create_time_moe_model(
                                 state= state,
                                 derivative= derivative)
     
-        study.optimize(objective_func, n_trials=100)
+        study.optimize(objective_func, n_trials=1)
         best_params = study.best_params
 
     tensor = torch.tensor(df_scaled, dtype=torch.float32)

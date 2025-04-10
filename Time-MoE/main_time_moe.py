@@ -17,8 +17,8 @@ if __name__ == "__main__":
         type_prediction: 'zeroshot', 'fine_tuning_indiv', 'fine_tuning_global', 'fine_tuning_product'
 
         ''' 
-        # run_all_in_thread(type_prediction='fine_tuning_global', type_model='50M')
-        run_all_in_thread(type_prediction='fine_tuning_global', type_model='200M')
+        run_all_in_thread(type_prediction='fine_tuning_product', type_model='50M')
+        run_all_in_thread(type_prediction='fine_tuning_product', type_model='200M')
     
     
         ''' 

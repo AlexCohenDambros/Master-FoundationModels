@@ -1,10 +1,11 @@
 from darts.models import NBEATSModel
 from darts import TimeSeries
 
+import torch.optim as optim
+
 from functools import partial
 
 from sklearn.metrics import mean_absolute_percentage_error as mape
-from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 
 import numpy as np
 import pandas as pd
@@ -53,7 +54,7 @@ def convert_date(date_string):
     month = int(year_month[4:])
     return pd.Timestamp(year=year, month=month, day=1)
 
-def get_scaled_data(df):
+def minmax_scaler(df):
     df = df[:-12]
     
     # MinMaxScaler
@@ -62,39 +63,30 @@ def get_scaled_data(df):
 
     return df_scaled, scaler
 
-def objective(trial, train_data, y_test, df_mean, scaler):
-    batch_size = trial.suggest_categorical("batch_size", [16, 32, 64])
+def objective(trial, train_data_val, y_test, df_mean, scaler):
     layer_widths = trial.suggest_int("layer_widths", 16, 128, step=16)
-    num_stacks = trial.suggest_int("num_stacks", 1, 3)
-    num_blocks = trial.suggest_int("num_blocks", 1, 3)
+    num_blocks = trial.suggest_int("num_blocks", 1, 4)
     num_layers = trial.suggest_int("num_layers", 1, 4)
-
-    train_series = TimeSeries.from_values(train_data)
-
-    earlyStopping_nbeats = EarlyStopping(
-        monitor="train_loss",
-        patience=10,
-        mode="min",
-        min_delta=0.05,
-        check_finite = True
-    )
+    n_epochs = trial.suggest_categorical("n_epochs", [10, 20, 50, 80, 100])
+    lr = trial.suggest_categorical("lr", [1e-3, 1e-4, 5e-5, 1e-6, 1e-7])
 
     model = NBEATSModel(
         input_chunk_length=12,
         output_chunk_length=1,
-        n_epochs=100,
-        batch_size=batch_size,
+        n_epochs=n_epochs,
+        batch_size=16,
         random_state=42,
         activation="ReLU",
-        pl_trainer_kwargs={"accelerator": "gpu", "devices": [1], "callbacks": [earlyStopping_nbeats]},
-        generic_architecture=True,
-        num_stacks=num_stacks,
+        pl_trainer_kwargs={"accelerator": "gpu", "devices": [1]},
+        optimizer_cls=optim.Adam,
+        optimizer_kwargs={"lr": lr},
+        dropout=0.1,
         num_blocks=num_blocks,
         num_layers=num_layers,
         layer_widths=layer_widths
     )
 
-    model.fit(train_series)
+    model.fit(train_data_val)
     forecast = model.predict(12)
     y_pred = scaler.inverse_transform(forecast.values().reshape(-1, 1)).flatten()
 
@@ -121,35 +113,28 @@ def create_nbeats_model(data):
    
     df = data['m3']
     
-    df_scaled, scaler = get_scaled_data(df)
+    df, scaler = minmax_scaler(df)
+    df_val, scaler_val= minmax_scaler(df[:-12])
 
-    series = TimeSeries.from_values(df_scaled)
-
-    train_data = df_scaled[:-12]
+    series = TimeSeries.from_values(df)
+    series_val = TimeSeries.from_values(df_val)
     
     study = optuna.create_study(direction="minimize", pruner=optuna.pruners.MedianPruner(n_warmup_steps=10))
-    objective_func = partial(objective, train_data=train_data, y_test=df[:-12][-12:].values, df_mean=df[:-24].mean(), scaler=scaler)
+    objective_func = partial(objective, train_data_val=series_val, y_test=df[:-12][-12:].values, df_mean=df[:-24].mean(), scaler=scaler_val)
     study.optimize(objective_func, n_trials=200)
     best_params = study.best_params
-
-    earlyStopping_nbeats = EarlyStopping(
-        monitor="train_loss",
-        patience=10,
-        mode="min",
-        min_delta=0.05,
-        check_finite = True
-    )
 
     final_model = NBEATSModel(
         input_chunk_length=12,
         output_chunk_length=1,
-        n_epochs=100,
-        batch_size=best_params["batch_size"],
+        n_epochs=best_params["epochs"],
+        batch_size=16,
         random_state=42,
         activation="ReLU",
-        pl_trainer_kwargs={"accelerator": "gpu", "devices": [1], "callbacks": [earlyStopping_nbeats]},
-        generic_architecture=True,
-        num_stacks=best_params["num_stacks"],
+        pl_trainer_kwargs={"accelerator": "gpu", "devices": [1]},
+        optimizer_cls=optim.Adam,
+        optimizer_kwargs={"lr": best_params["lr"]},
+        dropout=0.1,
         num_blocks=best_params["num_blocks"],
         num_layers=best_params["num_layers"],
         layer_widths=best_params["layer_widths"]

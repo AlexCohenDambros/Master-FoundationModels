@@ -10,9 +10,9 @@ if __name__ == "__main__":
         # product_and_single_thread_testing()
         
         ''' 
-        # INFO: ALL STATES RECURSIVE/DIRECT PYTORCH
+        # INFO: ALL STATES 
         ''' 
-        run_lstm_in_thread("recursive")
+        run_lstm_in_thread()
 
 
     except Exception as e:
