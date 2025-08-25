@@ -19,15 +19,17 @@ from .configuration_foundation_moe import FoundationMoEConfig
 
 from .ts_generation_mixin import TSGenerationMixin
 
-from experts.moirai_expert import MoiraiMoEExpert
-from experts.timemoe_expert import TimeMoEExpert
-from experts.timesfm_expert import TimesFMExpert
+from ..experts.moirai_expert import MoiraiMoEExpert
+from ..experts.timemoe_expert import TimeMoEExpert
+from ..experts.timesfm_expert import TimesFMExpert
 
 EXPERT_CLASS_MAP = {
     "moirai": MoiraiMoEExpert,
     "timemoe": TimeMoEExpert,
     "timesfm": TimesFMExpert,
 }
+
+PREDICTION_LENGTH = 1
 
 def _get_unpad_data(attention_mask):
     seqlens_in_batch = attention_mask.sum(dim=-1, dtype=torch.int32)
@@ -262,20 +264,21 @@ class FoundationMoERMSNorm(nn.Module):
 
 # === Sparse Experts Layer ===
 class FoundationMoESparseExpertsLayer(nn.Module):
-    def __init__(self, config, expert_names):
+    def __init__(self, config):
         super().__init__()
         self.config = config
         self.top_k = config.num_experts_per_tok
         self.hidden_size = config.hidden_size
-        self.expert_names = expert_names
-        self.num_experts = len(self.expert_names)
+        self.num_experts = len(EXPERT_CLASS_MAP)
+        global PREDICTION_LENGTH 
 
         # Gating network (router)
         self.gate = nn.Linear(self.hidden_size, self.num_experts, bias=False)
 
         # Gating network (router)
         self.experts = nn.ModuleList([
-            EXPERT_CLASS_MAP[name.lower()]() for name in self.expert_names
+            EXPERT_CLASS_MAP[name](prediction_length=PREDICTION_LENGTH, device="cpu")
+            for name in EXPERT_CLASS_MAP
         ])
 
     def forward(self, hidden_states: torch.Tensor):
@@ -758,7 +761,7 @@ class Model(MoePreTrainedModel):
 
     def __init__(self, config: FoundationMoEConfig):
         super().__init__(config)
-        self.embed_layer = RotaryEmbedding(config)
+        self.embed_layer = TimeSeriesInputEmbedding(config)
 
         self.decoder_layer = MoeDecoderLayer(config, layer_idx=0)
 
@@ -929,18 +932,31 @@ class MoeOutputLayer(nn.Module):
 
 class MoeForPrediction(PreTrainedModel, TSGenerationMixin):
 
-    def __init__(self, config: FoundationMoEConfig):
+    def __init__(self, config: FoundationMoEConfig, prediction_length: int):
         super().__init__(config)
         self.config = config
+        self.prediction_length = prediction_length
+        global PREDICTION_LENGTH 
+        PREDICTION_LENGTH = self.prediction_length
         self.apply_aux_loss = config.apply_aux_loss
         self.num_experts_per_tok = config.num_experts_per_tok
         self.router_aux_loss_factor = config.router_aux_loss_factor
 
         self.model = Model(config)
         
-        # Único head para todos os especialistas
-        self.lm_head = nn.Linear(config.hidden_size, self.input_size * self.pred_len)
-
+         # output layer
+        lm_head_list = []
+        self.horizon_length_map = {}
+        for i, horizon_length in enumerate([int(self.prediction_length)]):
+            lm_head_list.append(
+                MoeOutputLayer(
+                    hidden_size=self.config.hidden_size,
+                    input_size=self.config.input_size,
+                    horizon_length=horizon_length,
+                )
+            )
+            self.horizon_length_map[horizon_length] = i
+        self.lm_heads = nn.ModuleList(lm_head_list)
         self.loss_function = torch.nn.HuberLoss(reduction='none', delta=2.0)
 
         # Initialize weights and apply final processing

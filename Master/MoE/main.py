@@ -17,6 +17,13 @@ if __name__ == "__main__":
         default="Maple728/TimeMoE-50M",
         help="Path to pretrained model. Default: Maple728/TimeMoE-50M",
     )
+    parser.add_argument(
+        "--prediction_length",
+        "-p",
+        type=str,
+        default="1",
+        help="Number of steps ahead to predict. Default: 1",
+    )
     parser.add_argument("--output_path", "-o", type=str, default="logs/time_moe")
     parser.add_argument(
         "--max_length",
@@ -153,6 +160,7 @@ if __name__ == "__main__":
         model_path=args.model_path,
         output_path=args.output_path,
         seed=args.seed,
+        prediction_length=args.prediction_length
     )
 
     runner.train_model(
@@ -160,6 +168,7 @@ if __name__ == "__main__":
         max_length=args.max_length,
         stride=args.stride,
         data_path=args.data_path,
+        prediction_length=args.prediction_length,
         normalization_method=args.normalization_method,
         attn_implementation=args.attn_implementation,
         micro_batch_size=args.micro_batch_size,

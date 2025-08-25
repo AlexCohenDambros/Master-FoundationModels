@@ -1,0 +1,25 @@
+import subprocess
+import os 
+
+os.environ["TF_ENABLE_ONEDNN_OPTS"] ="0"
+os.environ["WANDB_MODE"] = "disabled"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["NCCL_P2P_DISABLE"] = "1"
+os.environ["NCCL_IB_DISABLE"] = "1"
+
+command = [
+    "python", "main.py",
+    "-d", "../dataset_global/dataset_global.jsonl",
+    "-m", "Maple728/TimeMoE-50M",
+    "-o", "./output_all_models/output_time_moe",
+    "--from_scratch"
+]
+
+try:
+    result = subprocess.run(command, check=True, capture_output=True, text=True)
+    print(result.stdout)
+    if result.stderr:
+        print(result.stderr)
+except subprocess.CalledProcessError as e:
+    print(f"Command failed with exit code {e.returncode}")
+    print(e.stderr)

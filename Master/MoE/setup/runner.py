@@ -19,11 +19,13 @@ class MoeRunner:
             self,
             model_path: str = None,
             output_path: str = 'logs/time_moe',
-            seed: int = 9899
+            seed: int = 9899,
+            prediction_length: int = 1
     ):
         self.model_path = model_path
         self.output_path = output_path
         self.seed = seed
+        self.prediction_length = prediction_length
 
     def load_model(self, model_path: str = None, from_scatch: bool = False, **kwargs):
         if model_path is None:
@@ -51,7 +53,7 @@ class MoeRunner:
 
         if from_scatch:
             config = FoundationMoEConfig.from_pretrained(model_path, _attn_implementation=attn)
-            model = MoeForPrediction(config)
+            model = MoeForPrediction(config, self.prediction_length)
         else:
             model = MoeForPrediction.from_pretrained(model_path, **kwargs)
         return model
@@ -184,6 +186,9 @@ class MoeRunner:
             args=training_args,
             train_dataset=train_ds,
         )
+        # ERROR: Bom aqui acontece um problema, os especialistas FNN do time-moe eles pegam embeddings do Transformer, processa com gating (controlando o fluxo de informação), e devolve embeddings transformados que depois vão para o roteador/saída.
+        # Não tenho certeza ainda se é possivel passar o hidden_state direto pros foundation models 
+        # Opção: Fazer do zero -> partindo direto do roteador, passar os valores das séries direto pros modelos.
         trainer.train()
         trainer.save_model(self.output_path)
         log_in_local_rank_0(f'Saving model to {self.output_path}')

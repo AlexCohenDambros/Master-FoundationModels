@@ -1,11 +1,12 @@
 import torch
+import torch.nn as nn
 import timesfm
 
-class TimesFMExpert():
+class TimesFMExpert(nn.Module):
     def __init__(self, prediction_length: int, device: str = 'cpu'):
+        super().__init__()
         self.prediction_length = prediction_length
         self.device = device
-        self.model = None
         
         self.model = timesfm.TimesFm(
             hparams=timesfm.TimesFmHparams(
