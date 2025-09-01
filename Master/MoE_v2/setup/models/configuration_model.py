@@ -119,9 +119,17 @@ class MoERouter(nn.Module):
             # multiplicar pesos (k,1) * (k, pred_len) e somar
             combined = (weights.unsqueeze(-1) * chosen_preds).sum(dim=0)  # (pred_len,)
             final_preds[i] = combined
+            
             if verbose:
-                print(f"Amostra {i}: experts escolhidos {idxs.tolist()} pesos {weights.tolist()}")
-
+                selected_names = [self.expert_keys[idx] for idx in idxs]
+                selected_str = ", ".join(f"{name}: {w:.3f}" for name, w in zip(selected_names, weights))
+            
+                not_selected_idx = [j for j in range(len(self.expert_keys)) if j not in idxs]
+                not_selected_names = [self.expert_keys[j] for j in not_selected_idx]
+                not_selected_weights = [probs[i, j].item() for j in not_selected_idx]
+                not_selected_str = ", ".join(f"{name}: {w:.3f}" for name, w in zip(not_selected_names, not_selected_weights))
+                
+                print(f"Amostra {i}: Selecionados -> {selected_str}; Não selecionados -> {not_selected_str}")
         return final_preds
 
     def save(self, path):
@@ -209,7 +217,7 @@ def train_and_save(data_path, context_length, horizon, save_path, device="cpu",
     return model
 
 
-def predict_from_model(model_path, series, context_length, device="cpu", verbose=False):
+def predict_from_model(model_path, series, context_length, device="cpu", verbose=True):
     model = MoERouter.load(model_path, device=device)
     if len(series) < model.context_length:
         raise ValueError(f"Série muito curta. context_length={model.context_length}")
