@@ -1,5 +1,5 @@
 import argparse
-from setup.models.configuration_model import train_and_save, predict_from_model
+from setup.models.modeling_model import train_and_save, predict_from_model
 
 def main():
     parser = argparse.ArgumentParser()

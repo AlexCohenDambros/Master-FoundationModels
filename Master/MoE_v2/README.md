@@ -34,15 +34,15 @@
 ### **Entrada esperada**
 
 * `sequences`: lista de séries (list\[list\[float]])
-* `input_length`: número de pontos usados como entrada do modelo.
-* `pred_length`: número de pontos a serem previstos.
+* `context_length`: número de pontos usados como entrada do modelo.
+* `horizon`: número de pontos a serem previstos.
 
 ### **Processamento**
 
-* Para cada série com tamanho ≥ `input_length + pred_length`, cria um par:
+* Para cada série com tamanho ≥ `context_length + horizon`, cria um par:
 
-  * `inp = seq[:input_length]` → janela de entrada
-  * `tgt = seq[input_length : input_length + pred_length]` → janela de saída esperada
+  * `inp = seq[:context_length]` → janela de entrada
+  * `tgt = seq[context_length : context_length + horizon]` → janela de saída esperada
 
 ### **Saída**
 
@@ -54,20 +54,20 @@
 
 onde:
 
-* `inp.shape = (input_length,)`
-* `tgt.shape = (pred_length,)`
+* `inp.shape = (context_length,)`
+* `tgt.shape = (horizon,)`
 
 ---
 
-## **3. Experts (`MoiraiMoEExpert`, `TimeMoEExpert`, `TimesFMExpert`)**
+## **3. Experts (`MoiraiMoEExpert`, `TimeMoEExpert`, `TimesFMExpert`, ...)**
 
 ### **Entrada esperada (no `forward`)**
 
-* Tensor de shape `(B, input_length)` (batch de séries).
+* Tensor de shape `(B, context_length)` (batch de séries).
 
 ### **Saída esperada**
 
-* Tensor de shape `(B, pred_length)` com as predições para cada série do batch.
+* Tensor de shape `(B, horizon)` com as predições para cada série do batch.
 
 ### **Observação importante**
 
@@ -80,7 +80,7 @@ onde:
 
 ### **Entradas**
 
-* `x: torch.Tensor` com shape `(B, input_length)` → batch de séries.
+* `x: torch.Tensor` com shape `(B, context_length)` → batch de séries.
 
 ### **Etapas internas**
 
@@ -106,7 +106,7 @@ onde:
 
 ### **Saída**
 
-* Tensor `(B, pred_length)` com as previsões finais.
+* Tensor `(B, horizon)` com as previsões finais.
 
 ---
 
@@ -115,13 +115,13 @@ onde:
 ### **Entradas**
 
 * `jsonl_path`: caminho do dataset `.jsonl`
-* `input_length`: número de pontos de entrada
-* `pred_length`: número de pontos de previsão
+* `context_length`: número de pontos de entrada
+* `horizon`: número de pontos de previsão
 * `save_path`: caminho para salvar o modelo (`.pt`)
 * `device`: `"cpu"` ou `"cuda"`
 * Hiperparâmetros internos:
 
-  * `batch_size=8`
+  * `batch_size=32`
   * `epochs=5`
   * `lr=1e-3`
 
@@ -143,9 +143,9 @@ onde:
 ```python
 {
  "gating_state": state_dict,
- "expert_keys": ["moirai", "timemoe", "timesfm"],
- "pred_length": pred_length,
- "input_length": input_length
+ "expert_keys": ["moirai", "timemoe", "timesfm", ...],
+ "horizon": horizon,
+ "context_length": context_length
 }
 ```
 
@@ -155,25 +155,22 @@ onde:
 
 ### **Entradas**
 
-* `model_path`: caminho do modelo salvo
-* `series`: lista de floats (série completa ou parcial)
-* `input_length`: número de pontos de entrada
+* `model_path`: caminho do modelo salvo (ex: "checkpoints/model.pt")
+* `series`: lista de valores (ex: [1,2,3,4,5,6,7,8])
+* `context_length`: número de pontos usados como contexto (ex: 5)
+* `horizon`: número de passos a serem previstos (ex: 2)
 * `device`: `"cpu"` ou `"cuda"`
 
 ### **Processamento**
 
 1. Carrega `MoERouter` com pesos do gating.
-2. Extrai últimos `input_length` pontos da série:
-
-   ```python
-   x = torch.tensor(series[-input_length:]).unsqueeze(0)  # (1, input_length)
-   ```
+2. Extrai últimos `context_length` pontos da série.
 3. Passa pelo roteador + experts.
 4. Combina saída.
 
 ### **Saída**
 
-* Tensor `(1, pred_length)` com previsões.
+* Tensor `(1, horizon)` com previsões.
 
 ---
 
@@ -186,28 +183,28 @@ onde:
 
 2. **Dataset Loader**
 
-   * Entrada: séries, `input_length`, `pred_length`
+   * Entrada: séries, `context_length`, `horizon`
    * Saída: pares `(inp, tgt)` como tensores
 
 3. **Experts**
 
-   * Entrada: `(B, input_length)`
-   * Saída: `(B, pred_length)`
+   * Entrada: `(B, context_length)`
+   * Saída: `(B, horizon)`
 
 4. **Router**
 
-   * Entrada: `(B, input_length)`
-   * Saída: `(B, pred_length)` (fusão top-2)
+   * Entrada: `(B, context_length)`
+   * Saída: `(B, horizon)` (fusão top-2)
 
 5. **Treinamento**
 
-   * Entrada: `.jsonl`, `input_length`, `pred_length`
+   * Entrada: `.jsonl`, `context_length`, `horizon`
    * Saída: modelo salvo (`.pt`)
 
 6. **Predição**
 
-   * Entrada: modelo salvo + série
-   * Saída: previsões `(1, pred_length)`
+   * Entrada: modelo salvo + série + horizonte
+   * Saída: previsões `(1, horizon)`
 
 ---
 
@@ -245,14 +242,14 @@ Arquivo `dados.jsonl` (2 séries no exemplo acima).
 ### **Exemplo**
 
 ```python
-ds = TimeSeriesDataset(sequences, input_length=4, pred_length=2)
+ds = TimeSeriesDataset(sequences, context_length=4, horizon=2)
 ```
 
 ### **Entrada**
 
 * Série: `[9388.163, 4634.727, 2431.101, 5521.988, 19713.733, 16773.048]`
-* `input_length = 4`
-* `pred_length = 2`
+* `context_length = 4`
+* `horizon = 2`
 
 ### **Saída**
 
@@ -279,7 +276,7 @@ out = expert(inp)
 
 ### **Entrada**
 
-* Tensor `(B, input_length)`.
+* Tensor `(B, context_length)`.
   Exemplo:
 
 ```python
@@ -292,7 +289,7 @@ tensor([
 
 ### **Saída**
 
-* Tensor `(B, pred_length)`.
+* Tensor `(B, horizon)`.
   Exemplo:
 
 ```python
@@ -312,14 +309,14 @@ tensor([
 ### **Exemplo de uso**
 
 ```python
-router = MoERouter(input_length=4, pred_length=2, device="cpu")
+router = MoERouter(context_length=4, horizon=2, device="cpu")
 x = torch.randn(2, 4)  # batch com 2 séries
 out = router(x, verbose=True)
 ```
 
 ### **Entrada**
 
-* Tensor `(B, input_length)`
+* Tensor `(B, context_length)`
   Exemplo:
 
 ```python
@@ -346,7 +343,7 @@ tensor([
 
 ### **Saída**
 
-* Tensor `(B, pred_length)`
+* Tensor `(B, horizon)`
   Exemplo:
 
 ```python
@@ -369,14 +366,14 @@ python main.py --mode train --jsonl dados.jsonl --input-length 4 --pred-length 2
 ### **Entrada**
 
 * `jsonl_path="dados.jsonl"`
-* `input_length=4`
-* `pred_length=2`
+* `context_length=4`
+* `horizon=2`
 * `save_path="./moe_model.pt"`
 
 ### **Processo**
 
 1. Carrega dataset e gera `(inp, tgt)`
-2. Forward → roteador + experts → predição `(B, pred_length)`
+2. Forward → roteador + experts → predição `(B, horizon)`
 3. Calcula perda Huber entre predição e `tgt`
 4. Atualiza apenas os pesos do **gating**
 5. Repete por `epochs`
@@ -389,8 +386,8 @@ Modelo salvo:
 {
  "gating_state": {...},        # pesos do roteador
  "expert_keys": ["moirai", "timemoe", "timesfm"],
- "pred_length": 2,
- "input_length": 4
+ "horizon": 2,
+ "context_length": 4
 }
 ```
 
@@ -404,14 +401,14 @@ Arquivo: `moe_model.pt`
 
 ```python
 series = [0.5, 0.6, 0.7, 0.8, 1.0, 1.2]
-out = predict_from_model("./moe_model.pt", series, input_length=4, device="cpu", verbose=True)
+out = predict_from_model("./moe_model.pt", series, context_length=4, device="cpu", verbose=True)
 print(out)
 ```
 
 ### **Entrada**
 
 * Série: `[0.5, 0.6, 0.7, 0.8, 1.0, 1.2]`
-* O modelo usa apenas os últimos `input_length=4`:
+* O modelo usa apenas os últimos `context_length=4`:
 
 ```python
 [0.7, 0.8, 1.0, 1.2]   # shape (1,4)
@@ -423,7 +420,7 @@ print(out)
 
 ### **Saída**
 
-* Tensor `(1, pred_length)`
+* Tensor `(1, horizon)`
   Exemplo:
 
 ```python
@@ -441,25 +438,25 @@ tensor([[1.35, 1.48]])
 
 2. **Dataset Loader**
 
-   * Input: série + `input_length=4`, `pred_length=2`
+   * Input: série + `context_length=4`, `horizon=2`
    * Output: `(inp=[9388.163,4634.727,2431.101,5521.988], tgt=[19713.733,16773.048])`
 
 3. **Experts**
 
-   * Input: `(B=3, input_length=4)`
-   * Output: `(B=3, pred_length=2)`
+   * Input: `(B=3, context_length=4)`
+   * Output: `(B=3, horizon=2)`
 
 4. **Router**
 
-   * Input: `(B=2, input_length=4)`
-   * Output: `(B=2, pred_length=2)` (fusão top-2)
+   * Input: `(B=2, context_length=4)`
+   * Output: `(B=2, horizon=2)` (fusão top-2)
 
 5. **Treinamento**
 
-   * Input: `jsonl + input_length + pred_length`
+   * Input: `jsonl + context_length + horizon`
    * Output: modelo salvo `.pt`
 
 6. **Predição**
 
    * Input: `series + modelo salvo`
-   * Output: `(1, pred_length)` com previsões
+   * Output: `(1, horizon)` com previsões

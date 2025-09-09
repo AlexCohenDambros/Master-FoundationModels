@@ -4,6 +4,8 @@ Time-MoE/model_time_moe2.py
 Time-MoE/model_time_moe3.py
 Time-MoE/model_time_moe4.py
 
+*.idea
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

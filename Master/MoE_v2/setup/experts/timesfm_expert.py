@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import timesfm
-import numpy as np
 
 class TimesFMExpert(nn.Module):
     def __init__(self, prediction_length: int, context_length: int, device: str = 'cpu'):
@@ -26,8 +25,8 @@ class TimesFMExpert(nn.Module):
 
     def forward(self, input_tensor: torch.Tensor) -> torch.Tensor:
         input_np = input_tensor.clone().detach().cpu().numpy()
-
+        
         with torch.no_grad():
             out, experimental_quantile_forecast = self.model.forecast(input_np) 
 
-        return torch.from_numpy(out).float() 
+        return torch.from_numpy(out).float()

@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from uni2ts.model.moirai import MoiraiForecast, MoiraiModule
 
-class MoiraiExpert(nn.Module):
+class MoiraiMoEExpert(nn.Module):
     def __init__(self, prediction_length: int, context_length: int, device: str = 'cpu'):
         super().__init__()
         self.prediction_length = prediction_length
@@ -10,7 +10,8 @@ class MoiraiExpert(nn.Module):
         self.device = device
 
         self.model = MoiraiForecast(
-            module=MoiraiModule.from_pretrained(f"Salesforce/moirai-1.1-R-large"),
+            # TODO: check what other sizes are available on moirai-moe
+            module=MoiraiModule.from_pretrained("Salesforce/moirai-moe-1.0-R-small"),
             prediction_length=self.prediction_length,
             context_length=self.context_length,
             patch_size=16,

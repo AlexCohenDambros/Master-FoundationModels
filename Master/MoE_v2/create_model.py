@@ -10,7 +10,8 @@ os.environ["NCCL_IB_DISABLE"] = "1"
 command = [
     "python", "main.py",
     "--mode", "train",
-    "--data", "../dataset_global/dataset_global.jsonl"
+    "--data", "../dataset_global/dataset_global.jsonl",
+    "--horizon", "12"
 ]
 
 try:
@@ -18,6 +19,7 @@ try:
     print(result.stdout)
     if result.stderr:
         print(result.stderr)
+
 except subprocess.CalledProcessError as e:
     print(f"Command failed with exit code {e.returncode}")
     print(e.stderr)
