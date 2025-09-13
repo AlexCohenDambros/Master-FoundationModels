@@ -133,9 +133,9 @@ class MoERouter(nn.Module):
 
         # PT: Variáveis usadas para cálculo do balance-loss (monitor / regularização)
         # EN: Variables used to calculate balance-loss (monitor/regularization)
-        self.last_logits = None
-        self.last_topk_idx = None
-        self.last_topk_vals = None
+        # self.last_logits = None
+        # self.last_topk_idx = None
+        # self.last_topk_vals = None
 
     def forward(self, x, top_k: int = 2, verbose: bool = False):
         """
@@ -170,9 +170,9 @@ class MoERouter(nn.Module):
 
         # PT: salvar as informações relevantes para possível cálculo de regularizador (balance loss). usamos detach() para não manter grafo e não aumentar uso de memória
         # EN: save relevant information for possible regularizer calculation (balance loss). we use detach() to avoid maintaining the graph and not increase memory usage
-        self.last_logits = logits.detach()
-        self.last_topk_idx = topk_idx.detach()
-        self.last_topk_vals = topk_vals.detach()
+        # self.last_logits = logits.detach()
+        # self.last_topk_idx = topk_idx.detach()
+        # self.last_topk_vals = topk_vals.detach()
 
         device = self.device
 
@@ -410,11 +410,11 @@ def train_and_save(data_path, context_length, horizon, save_path, device="cpu",
 
             # load-balancing regularizer (simples)
             # TODO: check if this routing collapse balance is the most appropriate in this situation. Check which method is implemented in Time-MoE!!!
-            if model.last_logits is not None:
-                probs = torch.softmax(model.last_logits, dim=-1)  
-                mean_probs = probs.mean(dim=0) 
-                bal_loss = (mean_probs * mean_probs).sum() * model.num_experts  
-                loss = loss + balance_coef * bal_loss
+            # if model.last_logits is not None:
+            #     probs = torch.softmax(model.last_logits, dim=-1)  
+            #     mean_probs = probs.mean(dim=0) 
+            #     bal_loss = (mean_probs * mean_probs).sum() * model.num_experts  
+            #     loss = loss + balance_coef * bal_loss
 
             opt.zero_grad()
             loss.backward()
@@ -458,6 +458,14 @@ def predict_from_model(model_path, series, context_length, horizon, device="cpu"
     # =============================================================================
 
     model = MoERouter.load(model_path, device=device)
+    
+    print(context_length)
+    print(horizon)
+
+    print("-----------")
+    print(model.context_length)
+    print(model.horizon)
+
 
     if len(series) < context_length:
         raise ValueError(f"Series too short for the requested context")
@@ -465,13 +473,14 @@ def predict_from_model(model_path, series, context_length, horizon, device="cpu"
     if not isinstance(horizon, int) or horizon < 1:
         raise ValueError("`horizon` must be an int >= 1.")
 
-    x = torch.tensor(series[-context_length:], dtype=torch.float32, device=device).unsqueeze(0)
+    x = torch.tensor(series[-model.context_length:], dtype=torch.float32).unsqueeze(0) # (1, context_length)
+
+    print(x.shape)
 
     with torch.no_grad():
         # TODO: o MoERouter.forward() pega o horizonte pelo __init__ e nao passar como argumento no forward(), resultado em um erro na previsao de um horizonte diferente a qual ele foi treinado
         # MoERouter.forward() takes the horizon from __init__ and does not pass it as an argument in forward(), resulting in an error in the prediction of a different horizon to the one it was trained on.
-        print("Horizon: ", horizon)
-        out = model(x, verbose=verbose)
+        out = model(x=x, verbose=verbose)
    
     return out.cpu()
 
