@@ -3,26 +3,24 @@ import torch.nn as nn
 from transformers import AutoModelForCausalLM
 
 class TimeMoEExpert(nn.Module):
-    def __init__(self, prediction_length: int, context_length: int, device: str = 'cpu'):
+    def __init__(self, device: str = 'cpu'):
         super().__init__()
-        self.prediction_length = prediction_length
-        self.context_length = context_length
         self.device = device
-        
-        self.model = AutoModelForCausalLM.from_pretrained(
+
+    def forward(self, input_tensor: torch.Tensor, context_length: int, prediction_length: int) -> torch.Tensor:
+        model = AutoModelForCausalLM.from_pretrained(
             "Maple728/TimeMoE-200M",
             trust_remote_code=True
         )
-        self.model.to(device)
-        self.model.eval()
+        model.to(self.device)
+        model.eval()
 
-    def forward(self, input_tensor: torch.Tensor) -> torch.Tensor:
         input_tensor = input_tensor.to(self.device)
 
         with torch.no_grad():
-            out = self.model.generate(
+            out = model.generate(
                 input_tensor,
-                max_new_tokens=self.prediction_length
+                max_new_tokens=prediction_length
             )
 
-        return out[:, -self.prediction_length:]
+        return out[:, -prediction_length:]

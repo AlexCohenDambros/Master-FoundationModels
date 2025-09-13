@@ -95,11 +95,9 @@ class MoERouter(nn.Module):
     #       and combines predictions by weights.
     # =============================================================================
 
-    def __init__(self, context_length, horizon, device="cpu"):
+    def __init__(self, context_length:int, device="cpu"):
         super().__init__()
         self.device = device
-        self.horizon = horizon
-        self.context_length = context_length
 
         # PT: keys dos experts na ordem definida (lista de strings)
         # EN: keys of experts in the defined order (list of strings)
@@ -112,9 +110,13 @@ class MoERouter(nn.Module):
         # PT: Instancia cada expert a partir do mapa (prediction_length, context_length, device)
         # EN: Instantiates each expert from the map (prediction_length, context_length, device)
         self.experts = nn.ModuleDict({
-            k: EXPERT_CLASS_MAP[k](prediction_length=horizon, context_length=context_length, device=device)
+            k: EXPERT_CLASS_MAP[k](device=device)
             for k in self.expert_keys
         })
+
+        # PT: Gating: mapeia vetor de contexto (tamanho context_length) para logits sobre experts
+        # EN: Gating: maps context vector (size context_length) to logits over experts
+        self.gating = nn.Linear(context_length, self.num_experts)
 
         # PT: Congelar os experts explicitamente: desativa grad e coloca em eval(). Isso evita alocação de grad acidental dos experts e garante comportamento determinístico.
         # EN: Freeze experts explicitly: disables grad and places it in eval(). This prevents accidental grad allocation from experts and ensures deterministic behavior.
@@ -122,10 +124,6 @@ class MoERouter(nn.Module):
             for p in ex.parameters():
                 p.requires_grad = False
             ex.eval()  
-
-        # PT: Gating: mapeia vetor de contexto (tamanho context_length) para logits sobre experts
-        # EN: Gating: maps context vector (size context_length) to logits over experts
-        self.gating = nn.Linear(context_length, self.num_experts)
 
         # PT: Move parâmetros/arquitetura para o dispositivo desejado
         # EN: Move parameters/architecture to the desired device
@@ -137,7 +135,7 @@ class MoERouter(nn.Module):
         # self.last_topk_idx = None
         # self.last_topk_vals = None
 
-    def forward(self, x, top_k: int = 2, verbose: bool = False):
+    def forward(self, x: torch.Tensor, context_length: int, horizon: int, top_k: int = 2, verbose: bool = False):
         """
         PT:
         - x: tensor (batch_size, context_length) contendo o contexto por amostra.
@@ -149,7 +147,6 @@ class MoERouter(nn.Module):
         - top_k: number of experts to pick per sample.
         Returns: (batch_size, horizon) combined predictions.
         """
-
         # PT: move o input para o device do modelo (pode já estar no mesmo device; .to faz nada nesse caso)
         # EN: move the input to the model's device (it may already be on the same device; .to does nothing in that case)
         x_device = x.to(self.device)
@@ -166,7 +163,7 @@ class MoERouter(nn.Module):
 
         # PT: tensor final que irá armazenar as predições combinadas (batch_size, horizon)
         # EN: final tensor that will store the combined predictions (batch_size, horizon)
-        final_preds = torch.zeros((batch_size, self.horizon), device=self.device)
+        final_preds = torch.zeros((batch_size, horizon), device=self.device)
 
         # PT: salvar as informações relevantes para possível cálculo de regularizador (balance loss). usamos detach() para não manter grafo e não aumentar uso de memória
         # EN: save relevant information for possible regularizer calculation (balance loss). we use detach() to avoid maintaining the graph and not increase memory usage
@@ -187,7 +184,7 @@ class MoERouter(nn.Module):
             - format: (num_experts, batch_size, horizon)
             - initializes with zeros; we will fill only the lines corresponding to the samples that chose the expert
         '''
-        preds_by_expert = torch.zeros((self.num_experts, batch_size, self.horizon), device=device)
+        preds_by_expert = torch.zeros((self.num_experts, batch_size, horizon), device=device)
 
         # PT: Para cada expert, coletamos as amostras do batch que o incluíram no top-k; chamamos o expert **uma vez** com o sub-batch (vetorizado) — evita chamar expert N vezes.
         # EN: For each expert, we collect the samples from the batch that included it in the top-k; we call the expert **once** with the (vectorized) sub-batch — avoid calling expert N times.
@@ -211,7 +208,7 @@ class MoERouter(nn.Module):
             # PT: chamar expert em modo no_grad (zero-shot, sem computar gradientes)
             # EN: call expert in no_grad mode (zero-shot, no gradients computed)
             with torch.no_grad():
-                out = expert_module(xb_for_expert)
+                out = expert_module(xb_for_expert, context_length=context_length, prediction_length=horizon)
 
             out = out.to(device).float().detach()
             preds_by_expert[expert_idx, idxs, :] = out
@@ -268,14 +265,12 @@ class MoERouter(nn.Module):
         torch.save({
             "gating_state": self.gating.state_dict(),
             "expert_keys": self.expert_keys,
-            "horizon": self.horizon,
-            "context_length": self.context_length,
             "num_experts": self.num_experts
         }, path)
         print(f"Model saved in {path}")
 
     @staticmethod
-    def load(path, device="cpu"):
+    def load(path, context_length, device="cpu"):
         """
         PT: Reconstrói MoERouter a partir do checkpoint. Requer que EXPERT_CLASS_MAP esteja disponível
             e que a mesma ordem de chaves seja usada.
@@ -284,9 +279,7 @@ class MoERouter(nn.Module):
             and the same key order to be used.
         """
         ckpt = torch.load(path, map_location=device)
-        context_length = ckpt.get("context_length")
-        horizon = ckpt["horizon"]
-        model = MoERouter(context_length=context_length, horizon=horizon, device=device)
+        model = MoERouter(context_length=context_length, device=device)
         model.gating.load_state_dict(ckpt["gating_state"])
         model.to(device)
         model.eval()
@@ -388,7 +381,7 @@ def train_and_save(data_path, context_length, horizon, save_path, device="cpu",
     
     loader = DataLoader(ds, batch_size=batch_size, shuffle=True)
 
-    model = MoERouter(context_length=context_length, horizon=horizon, device=device)
+    model = MoERouter(context_length=context_length, device=device)
     model.to(device)
 
     opt = torch.optim.Adam(model.gating.parameters(), lr=lr)
@@ -404,7 +397,7 @@ def train_and_save(data_path, context_length, horizon, save_path, device="cpu",
             inp = inp.to(device)
             tgt = tgt.to(device)
 
-            preds = model(inp)        
+            preds = model(inp, context_length=context_length, horizon=horizon)        
 
             loss = loss_fn(preds, tgt)
 
@@ -457,30 +450,20 @@ def predict_from_model(model_path, series, context_length, horizon, device="cpu"
     #     Output: tensor with predictions (e.g., tensor([[8.9, 9.5]]))
     # =============================================================================
 
-    model = MoERouter.load(model_path, device=device)
+    model = MoERouter.load(model_path, context_length=context_length, device=device)
     
-    print(context_length)
-    print(horizon)
-
-    print("-----------")
-    print(model.context_length)
-    print(model.horizon)
-
-
     if len(series) < context_length:
         raise ValueError(f"Series too short for the requested context")
 
     if not isinstance(horizon, int) or horizon < 1:
         raise ValueError("`horizon` must be an int >= 1.")
 
-    x = torch.tensor(series[-model.context_length:], dtype=torch.float32).unsqueeze(0) # (1, context_length)
-
-    print(x.shape)
+    x = torch.tensor(series[-context_length:], dtype=torch.float32).unsqueeze(0) # (1, context_length)
 
     with torch.no_grad():
         # TODO: o MoERouter.forward() pega o horizonte pelo __init__ e nao passar como argumento no forward(), resultado em um erro na previsao de um horizonte diferente a qual ele foi treinado
         # MoERouter.forward() takes the horizon from __init__ and does not pass it as an argument in forward(), resulting in an error in the prediction of a different horizon to the one it was trained on.
-        out = model(x=x, verbose=verbose)
+        out = model(x=x, context_length=context_length, horizon=horizon, verbose=verbose)
    
     return out.cpu()
 
