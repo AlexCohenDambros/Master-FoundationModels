@@ -1,3 +1,4 @@
+import os
 import json
 import torch
 import torch.nn as nn
@@ -103,12 +104,12 @@ class MoERouter(nn.Module):
         # EN: keys of experts in the defined order (list of strings)
         self.expert_keys = list(EXPERT_CLASS_MAP.keys())
 
-        # PT: número de experts (usado em várias partes do código)
-        # EN: number of experts (used in various parts of the code)
+        # PT: número de experts
+        # EN: number of experts
         self.num_experts = len(self.expert_keys)
 
-        # PT: Instancia cada expert a partir do mapa (prediction_length, context_length, device)
-        # EN: Instantiates each expert from the map (prediction_length, context_length, device)
+        # PT: Instancia cada expert a partir do mapa (device)
+        # EN: Instantiates each expert from the map (device)
         self.experts = nn.ModuleDict({
             k: EXPERT_CLASS_MAP[k](device=device)
             for k in self.expert_keys
@@ -118,8 +119,8 @@ class MoERouter(nn.Module):
         # EN: Gating: maps context vector (size context_length) to logits over experts
         self.gating = nn.Linear(context_length, self.num_experts)
 
-        # PT: Congelar os experts explicitamente: desativa grad e coloca em eval(). Isso evita alocação de grad acidental dos experts e garante comportamento determinístico.
-        # EN: Freeze experts explicitly: disables grad and places it in eval(). This prevents accidental grad allocation from experts and ensures deterministic behavior.
+        # PT: Congelar os experts: desativa grad e coloca em eval(). Isso evita alocação de grad acidental dos experts e garante comportamento determinístico.
+        # EN: Freeze experts: disables grad and places it in eval(). This prevents accidental grad allocation from experts and ensures deterministic behavior.
         for ex in self.experts.values():
             for p in ex.parameters():
                 p.requires_grad = False
@@ -260,7 +261,6 @@ class MoERouter(nn.Module):
         EN: Saves only the gating state and metadata needed to rebuild the router.
             OBS: We do not save checkpoints for large experts (we assume they will be reinstantiated via EXPERT_CLASS_MAP after loading); 
         """
-        import os
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
         torch.save({
             "gating_state": self.gating.state_dict(),
@@ -396,6 +396,9 @@ def train_and_save(data_path, context_length, horizon, save_path, device="cpu",
         for inp, tgt in loader:
             inp = inp.to(device)
             tgt = tgt.to(device)
+
+            print(inp.shape)
+            print(tgt.shape)
 
             preds = model(inp, context_length=context_length, horizon=horizon)        
 

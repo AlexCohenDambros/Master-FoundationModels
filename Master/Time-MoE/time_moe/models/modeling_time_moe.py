@@ -251,8 +251,12 @@ class TimeMoeTemporalBlock(nn.Module):
         self.act_fn = ACT2FN[hidden_act]
 
     def forward(self, hidden_state):
-        return self.down_proj(self.act_fn(self.gate_proj(hidden_state)) * self.up_proj(hidden_state))
-
+        print(hidden_state.shape)
+        # torch.Size([16382, 384])
+        out = self.down_proj(self.act_fn(self.gate_proj(hidden_state)) * self.up_proj(hidden_state))
+        print(out.shape)
+        # torch.Size([16382, 384])
+        return out
 
 class TimeMoeMLP(TimeMoeTemporalBlock):
     def __init__(self, hidden_size: int, intermediate_size: int, hidden_act: str):

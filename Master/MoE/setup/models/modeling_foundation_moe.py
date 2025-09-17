@@ -19,14 +19,20 @@ from .configuration_foundation_moe import FoundationMoEConfig
 
 from .ts_generation_mixin import TSGenerationMixin
 
-from ..experts.moirai_expert import MoiraiMoEExpert
+from ..experts.moiraimoe_expert import MoiraiMoEExpert
 from ..experts.timemoe_expert import TimeMoEExpert
 from ..experts.timesfm_expert import TimesFMExpert
+from ..experts.moirai_expert import MoiraiExpert
+from ..experts.timer_expert import TimerExpert
+from ..experts.chronos_expert import ChronosExpert
 
 EXPERT_CLASS_MAP = {
-    "moirai": MoiraiMoEExpert,
-    "timemoe": TimeMoEExpert,
-    "timesfm": TimesFMExpert,
+    "Moirai": MoiraiExpert,
+    "Moirai-MoE": MoiraiMoEExpert,
+    "Time-MoE": TimeMoEExpert,
+    "TimesFM": TimesFMExpert,
+    "Timer": TimerExpert,
+    "Chronos": ChronosExpert,
 }
 
 PREDICTION_LENGTH = 1
@@ -277,7 +283,7 @@ class FoundationMoESparseExpertsLayer(nn.Module):
 
         # Gating network (router)
         self.experts = nn.ModuleList([
-            EXPERT_CLASS_MAP[name](prediction_length=PREDICTION_LENGTH, device="cpu")
+            EXPERT_CLASS_MAP[name](device="cpu")
             for name in EXPERT_CLASS_MAP
         ])
 
@@ -322,6 +328,7 @@ class FoundationMoESparseExpertsLayer(nn.Module):
             expert_layer = self.experts[expert_idx]
 
             # Encontra as posições (tokens) que selecionaram o especialista atual.
+            # Erro aqui top_x vazio, nao encontrei o porque ainda
             idx, top_x = torch.where(expert_mask[expert_idx])
             
             # Extrai os hidden_states desses tokens específicos.
