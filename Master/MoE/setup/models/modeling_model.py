@@ -544,40 +544,54 @@ def train_and_save(data_path, context_length, horizon, save_path, device="cpu",
 def predict_from_model(model_path, series, context_length, horizon, device="cpu", verbose=True):
     # =============================================================================
     # PT: Carrega um modelo salvo do tipo MoERouter e realiza a previsão para uma
-    #     série temporal fornecida. A série é cortada para o tamanho do contexto e
-    #     passada ao modelo junto com o horizonte de previsão.
+    #     ou várias séries temporais fornecidas. A série é cortada para o tamanho
+    #     do contexto e passada ao modelo junto com o horizonte de previsão.
     #     - `model_path`: caminho do modelo salvo (ex: "checkpoints/model.pt")
-    #     - `series`: lista de valores (ex: [1,2,3,4,5,6,7,8])
+    #     - `series`: tensor 1D (ex: torch.Size([462])) ou 2D (ex: torch.Size([8, 398]))
     #     - `context_length`: número de pontos usados como contexto (ex: 5)
     #     - `horizon`: número de passos a serem previstos (ex: 2)
-    #     Saída: tensor com previsões (ex: tensor([[8.9, 9.5]]))
+    #     Saída: tensor 2D com previsões (ex: torch.Size([1, horizon]) ou [batch, horizon])
     #
-    # EN: Loads a saved MoERouter model and performs prediction for a given
-    #     time series. The series is trimmed to the context length and passed
+    # EN: Loads a saved MoERouter model and performs prediction for one or more
+    #     time series. Each series is trimmed to the context length and passed
     #     to the model along with the forecast horizon.
     #     - `model_path`: path to saved model (e.g., "checkpoints/model.pt")
-    #     - `series`: list of values (e.g., [1,2,3,4,5,6,7,8])
+    #     - `series`: 1D tensor (e.g., torch.Size([462])) or 2D (e.g., torch.Size([8, 398]))
     #     - `context_length`: number of points used as context (e.g., 5)
     #     - `horizon`: number of steps to forecast (e.g., 2)
-    #     Output: tensor with predictions (e.g., tensor([[8.9, 9.5]]))
+    #     Output: 2D tensor with predictions (ex: torch.Size([1, horizon]) or [batch, horizon])
     # =============================================================================
 
     model = MoERouter.load(model_path, context_length=context_length, device=device)
-    
-    if len(series) < context_length:
-        raise ValueError(f"Series too short for the requested context")
+
+    series = torch.as_tensor(series, dtype=torch.float32)
 
     if not isinstance(horizon, int) or horizon < 1:
         raise ValueError("`horizon` must be an int >= 1.")
 
-    x = torch.tensor(series[-context_length:], dtype=torch.float32).unsqueeze(0) # (1, context_length)
+    # Case 1D
+    if series.dim() == 1:
+        if len(series) < context_length:
+            raise ValueError("Series too short for the requested context")
+        x = series[-context_length:].unsqueeze(0)  # (1, context_length)
+        with torch.no_grad():
+            out = model(x=x, context_length=context_length, horizon=horizon, verbose=verbose)
+        return out.cpu()  # (1, horizon)
 
-    with torch.no_grad():
-        # TODO: o MoERouter.forward() pega o horizonte pelo __init__ e nao passar como argumento no forward(), resultado em um erro na previsao de um horizonte diferente a qual ele foi treinado
-        # MoERouter.forward() takes the horizon from __init__ and does not pass it as an argument in forward(), resulting in an error in the prediction of a different horizon to the one it was trained on.
-        out = model(x=x, context_length=context_length, horizon=horizon, verbose=verbose)
-   
-    return out.cpu()
+    # Case 2D
+    elif series.dim() == 2:
+        outs = []
+        for row in series:
+            if len(row) < context_length:
+                raise ValueError("One of the series is too short for the requested context")
+            x = row[-context_length:].unsqueeze(0)  # (1, context_length)
+            with torch.no_grad():
+                out = model(x=x, context_length=context_length, horizon=horizon, verbose=verbose)
+            outs.append(out.cpu())
+        return torch.cat(outs, dim=0)  # (batch, horizon)
+
+    else:
+        raise ValueError(f"`series` must be 1D or 2D, but got shape {tuple(series.shape)}")
 
 # Note: !!!!!!Importante!!!!!!
 # Ponto crítico, se o modelo for treinado com um context_lenght de 168 por exemplo, quando carregar e fazer uma previsao, o context_lenght deve ser igual o do treino.

@@ -10,7 +10,8 @@ os.environ["NCCL_IB_DISABLE"] = "1"
 command = [
     "python", "main.py",
     "--mode", "train",
-    "--data", "../dataset_global/dataset_global.jsonl",
+    "--data", "../dataset_global_sp/dataset_global_sp.jsonl",
+    "--context_length", "398",
     "--horizon", "12"
 ]
 
