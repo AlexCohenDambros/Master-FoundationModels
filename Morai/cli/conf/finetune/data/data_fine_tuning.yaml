@@ -1,4 +1,0 @@
-_target_: uni2ts.data.builder.simple.SimpleDatasetBuilder
-dataset: dataset_individual_ac_etanolhidratado
-storage_path: dataset_individual
-weight: 1000
