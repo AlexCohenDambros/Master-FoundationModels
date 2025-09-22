@@ -7,12 +7,12 @@ class MoiraiMoEExpert(nn.Module):
         super().__init__()
         self.device = device
 
-    def forward(self, input_tensor: torch.Tensor) -> torch.Tensor:
+    def forward(self, input_tensor: torch.Tensor, context_length: int, prediction_length: int) -> torch.Tensor:
         model = MoiraiForecast(
             # TODO: check what other sizes are available on moirai-moe
             module=MoiraiModule.from_pretrained("Salesforce/moirai-moe-1.0-R-small"),
-            prediction_length=input_tensor[1],
-            context_length=2048,
+            prediction_length=prediction_length,
+            context_length=context_length,
             patch_size=16,
             num_samples=100,
             target_dim=1,

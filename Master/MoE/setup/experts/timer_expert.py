@@ -7,7 +7,7 @@ class TimerExpert(nn.Module):
         super().__init__()
         self.device = device
         
-    def forward(self, input_tensor: torch.Tensor) -> torch.Tensor:
+    def forward(self, input_tensor: torch.Tensor, context_length: int, prediction_length: int) -> torch.Tensor:
         model = AutoModelForCausalLM.from_pretrained(
             "thuml/sundial-base-128m",
             trust_remote_code=True
@@ -26,8 +26,8 @@ class TimerExpert(nn.Module):
 
                 forecast = model.generate(
                     past_target,
-                    max_new_tokens=input_tensor[1],
-                    num_samples = 100
+                    max_new_tokens=prediction_length,
+                    num_samples = 20
                 )
 
                 out_row = torch.as_tensor(forecast.mean(dim=1), dtype=torch.float32).reshape(1, -1).to(self.device)

@@ -7,7 +7,7 @@ class ChronosExpert(nn.Module):
         super().__init__()
         self.device = device
 
-    def forward(self, input_tensor: torch.Tensor) -> torch.Tensor:
+    def forward(self, input_tensor: torch.Tensor, context_length: int, prediction_length: int) -> torch.Tensor:
         input_tensor = input_tensor.to(self.device)
 
         model = BaseChronosPipeline.from_pretrained(
@@ -19,7 +19,7 @@ class ChronosExpert(nn.Module):
         with torch.no_grad():
             _, out_mean = model.predict_quantiles(
                 context=input_tensor,
-                prediction_length=input_tensor[1],
+                prediction_length=prediction_length,
             )
 
         return out_mean

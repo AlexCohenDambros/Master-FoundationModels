@@ -9,11 +9,9 @@ os.environ["NCCL_IB_DISABLE"] = "1"
 
 command = [
     "python", "main.py",
-    "-d", "../dataset_global/dataset_global.jsonl",
-    "-m", "Maple728/TimeMoE-50M",
-    "-o", "./output_all_models/output_TESTE",
-    "-p", "12",
-    "--from_scratch"
+    "--mode", "train",
+    "--data", "../dataset_global/dataset_global.jsonl",
+    "--horizon", "12"
 ]
 
 try:
@@ -21,6 +19,7 @@ try:
     print(result.stdout)
     if result.stderr:
         print(result.stderr)
+
 except subprocess.CalledProcessError as e:
     print(f"Command failed with exit code {e.returncode}")
     print(e.stderr)

@@ -7,12 +7,12 @@ class TimesFMExpert(nn.Module):
         super().__init__()
         self.device = device
     
-    def forward(self, input_tensor: torch.Tensor) -> torch.Tensor:
+    def forward(self, input_tensor: torch.Tensor, context_length: int, prediction_length: int) -> torch.Tensor:
         model = timesfm.TimesFm(
             hparams=timesfm.TimesFmHparams(
                 backend=self.device,
                 per_core_batch_size=32,
-                horizon_len=input_tensor[1],
+                horizon_len=prediction_length,
                 num_layers=50,
                 use_positional_embedding=False,
                 context_len=2048,
