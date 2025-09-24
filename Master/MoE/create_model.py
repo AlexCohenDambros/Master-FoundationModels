@@ -10,9 +10,10 @@ os.environ["NCCL_IB_DISABLE"] = "1"
 command = [
     "python", "main.py",
     "--mode", "train",
-    "--data", "../dataset_global_sp/dataset_global_sp.jsonl",
+    "--data", "../dataset_global_nosp/dataset_global_nosp.jsonl",
     "--context_length", "398",
-    "--horizon", "12"
+    "--horizon", "12",
+    "--save_path", "sem_valid.pt"
 ]
 
 try:

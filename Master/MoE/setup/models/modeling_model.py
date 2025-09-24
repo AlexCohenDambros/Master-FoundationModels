@@ -318,7 +318,7 @@ class EarlyStopping:
 # -------------------
 # Load Data
 # -------------------
-def load_jsonl_backup(path):
+def load_jsonl(path):
     # -----------------------------------------------------------------------------
     # PT: Carrega um arquivo no formato JSONL (JSON por linha), extrai a chave
     #     "sequence" de cada linha e converte os valores em float.
@@ -351,7 +351,7 @@ def load_jsonl_backup(path):
 # -------------------
 # Load Data (with train/test split)
 # -------------------
-def load_jsonl(path, test_ratio=0.2, seed=42):
+def load_jsonl2(path, test_ratio=0.2, seed=42):
     # -----------------------------------------------------------------------------
     # PT: Carrega um arquivo no formato JSONL contendo séries temporais com chaves
     #     variadas, por exemplo:
@@ -460,18 +460,19 @@ def train_and_save(data_path, context_length, horizon, save_path, device="cpu",
     if "cuda" in device:
         torch.cuda.manual_seed_all(seed)
 
-    train_dataset, val_dataset = load_jsonl(data_path)
+    # train_dataset, val_dataset = load_jsonl(data_path)
+    ds = load_jsonl(data_path)
 
-    train_dataset = TimeSeriesDataset(train_dataset, context_length, horizon)
-    vaL_dataset = TimeSeriesDataset(val_dataset, context_length, horizon)
+    train_dataset = TimeSeriesDataset(ds, context_length, horizon)
+    # vaL_dataset = TimeSeriesDataset(val_dataset, context_length, horizon)
 
-    for name, dataset in [("train", train_dataset), ("val", val_dataset)]:
-        if len(dataset) == 0:
-            raise RuntimeError(f"No samples generated in {name} dataset. "
-                               f"Check context_length, horizon, and your data.")
+    # for name, dataset in [("train", train_dataset), ("val", val_dataset)]:
+    #     if len(dataset) == 0:
+    #         raise RuntimeError(f"No samples generated in {name} dataset. "
+    #                            f"Check context_length, horizon, and your data.")
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
-    val_loader = DataLoader(vaL_dataset, batch_size=batch_size, shuffle=False)
+    # val_loader = DataLoader(vaL_dataset, batch_size=batch_size, shuffle=False)
 
     model = MoERouter(context_length=context_length, device=device)
     model.to(device)
@@ -493,7 +494,34 @@ def train_and_save(data_path, context_length, horizon, save_path, device="cpu",
             data = data.to(device)
             target = target.to(device)
 
-            preds = model(data, context_length=context_length, horizon=horizon) 
+            # -------------------------
+            # Normalização (Standard Scaler)
+            # -------------------------
+            # mean = data.mean(dim=1, keepdim=True)     # média por série [32,1]
+            # std = data.std(dim=1, keepdim=True)       # desvio padrão por série [32,1]
+            # data_norm = (data - mean) / (std + 1e-8)  # evitar divisão por zero
+            # preds_norm = model(data_norm, context_length=context_length, horizon=horizon)
+            # Desnormaliza previsões
+            # preds = preds_norm * (std + 1e-8) + mean
+
+            # -------------------------
+            # Normalização (Min-Max)
+            # -------------------------
+            data_min = data.min(dim=1, keepdim=True).values
+            data_max = data.max(dim=1, keepdim=True).values
+            data_range = (data_max - data_min) + 1e-8  # evitar divisão por zero
+
+            data_norm_minmax = (data - data_min) / data_range  # escala para [0,1]
+
+            preds_norm_minmax = model(data_norm_minmax, context_length=context_length, horizon=horizon)
+
+            preds = preds_norm_minmax * data_range + data_min
+            
+            # -------------------------
+            # Normal
+            # -------------------------
+            # preds = model(data, context_length=context_length, horizon=horizon) 
+            # loss = loss_fn(preds, target)
 
             loss = loss_fn(preds, target)
 
@@ -505,24 +533,26 @@ def train_and_save(data_path, context_length, horizon, save_path, device="cpu",
         
         train_loss /= len(train_loader.dataset)
 
-        model.eval()
+        # model.eval()
 
-        with torch.no_grad():
-            for data, target in val_loader:
+        # with torch.no_grad():
+        #     for data, target in val_loader:
 
-                data = data.to(device)
-                target = target.to(device)
+        #         data = data.to(device)
+        #         target = target.to(device)
 
-                preds = model(data, context_length=context_length, horizon=horizon)
+        #         preds = model(data, context_length=context_length, horizon=horizon)
 
-                loss = loss_fn(preds, target)
-                val_loss += loss.item() * data.size(0)
+        #         loss = loss_fn(preds, target)
+        #         val_loss += loss.item() * data.size(0)
 
-        val_loss /= len(val_loader.dataset)
+        # val_loss /= len(val_loader.dataset)
 
-        print(f'Epoch {epoch+1}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}')
-        
-        early_stopping(val_loss, model)
+        # print(f'Epoch {epoch+1}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}')
+
+        print(f'Epoch {epoch+1}, Train Loss: {train_loss:.4f}')
+
+        early_stopping(train_loss, model)
 
         if early_stopping.early_stop:
             print("Early stopping")
