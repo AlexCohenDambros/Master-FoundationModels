@@ -148,6 +148,7 @@ class MoERouter(nn.Module):
         - top_k: number of experts to pick per sample.
         Returns: (batch_size, horizon) combined predictions.
         """
+
         # PT: move o input para o device do modelo (pode já estar no mesmo device; .to faz nada nesse caso)
         # EN: move the input to the model's device (it may already be on the same device; .to does nothing in that case)
         x_device = x.to(self.device)
@@ -159,6 +160,18 @@ class MoERouter(nn.Module):
         # PT: pega top-k probabilidades e seus índices por amostra -> shapes (batch_size, k)
         # EN: get top-k probabilities and their indices per sample -> shapes (batch_size, k)
         topk_vals, topk_idx = torch.topk(probs, k=top_k, dim=-1)
+
+        # >>>>>>> LOG/PRINT <<<<<<<
+        # Show selected experts and their weights for each sample
+        print("\n=== Selected experts and weights per sample ===")
+        for i in range(topk_idx.size(0)):                     
+            chosen_experts = [self.expert_keys[idx.item()] for idx in topk_idx[i]]
+            chosen_weights = topk_vals[i].detach().cpu().numpy()
+            print(f"Sample {i}:")
+            for exp, w in zip(chosen_experts, chosen_weights):
+                print(f"   Expert: {exp} | Weight: {w:.4f}")
+        print("===============================================\n")
+        # >>>>>>> END LOG <<<<<<<
 
         batch_size = x_device.size(0)  # batch_size
 
@@ -250,7 +263,7 @@ class MoERouter(nn.Module):
                 not_selected_weights = [float(probs[i, j].item()) for j in not_selected_idx]
                 not_selected_str = ", ".join(f"{name}: {w:.3f}" for name, w in zip(not_selected_names, not_selected_weights))
 
-                print(f"Sample {i}: Selected -> {selected_str}; Not selected -> {not_selected_str}")
+                print(f"Sample: Selected -> {selected_str}; Not selected -> {not_selected_str}")
 
         return final_preds
 

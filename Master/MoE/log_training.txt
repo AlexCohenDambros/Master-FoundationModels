@@ -1,0 +1,901 @@
+=== Selected experts and weights per sample ===
+Sample 0:
+   Expert: Moirai | Weight: 0.3755
+   Expert: Time-MoE | Weight: 0.2010
+Sample 1:
+   Expert: Time-MoE | Weight: 0.3438
+   Expert: Moirai | Weight: 0.2630
+Sample 2:
+   Expert: Time-MoE | Weight: 0.3031
+   Expert: Chronos | Weight: 0.2272
+Sample 3:
+   Expert: Time-MoE | Weight: 0.3270
+   Expert: Moirai | Weight: 0.2886
+Sample 4:
+   Expert: Moirai | Weight: 0.2713
+   Expert: Time-MoE | Weight: 0.2345
+Sample 5:
+   Expert: Time-MoE | Weight: 0.3773
+   Expert: Chronos | Weight: 0.2967
+Sample 6:
+   Expert: Time-MoE | Weight: 0.3155
+   Expert: Chronos | Weight: 0.2579
+Sample 7:
+   Expert: TimesFM | Weight: 0.2145
+   Expert: Moirai | Weight: 0.2112
+Sample 8:
+   Expert: Moirai | Weight: 0.4176
+   Expert: Time-MoE | Weight: 0.2100
+Sample 9:
+   Expert: Time-MoE | Weight: 0.3272
+   Expert: Moirai | Weight: 0.2663
+Sample 10:
+   Expert: Moirai | Weight: 0.2859
+   Expert: Time-MoE | Weight: 0.2630
+Sample 11:
+   Expert: Moirai | Weight: 0.3928
+   Expert: Chronos | Weight: 0.2418
+Sample 12:
+   Expert: Moirai | Weight: 0.2619
+   Expert: Time-MoE | Weight: 0.2346
+Sample 13:
+   Expert: Time-MoE | Weight: 0.2743
+   Expert: Moirai | Weight: 0.2643
+Sample 14:
+   Expert: Time-MoE | Weight: 0.3484
+   Expert: Chronos | Weight: 0.3039
+Sample 15:
+   Expert: Time-MoE | Weight: 0.2152
+   Expert: Chronos | Weight: 0.2109
+Sample 16:
+   Expert: Moirai | Weight: 0.3813
+   Expert: Time-MoE | Weight: 0.2124
+Sample 17:
+   Expert: Time-MoE | Weight: 0.3585
+   Expert: Chronos | Weight: 0.2777
+Sample 18:
+   Expert: Time-MoE | Weight: 0.2760
+   Expert: Moirai | Weight: 0.2645
+Sample 19:
+   Expert: Chronos | Weight: 0.3551
+   Expert: Time-MoE | Weight: 0.3401
+Sample 20:
+   Expert: Moirai | Weight: 0.2922
+   Expert: Chronos | Weight: 0.2411
+Sample 21:
+   Expert: Time-MoE | Weight: 0.3358
+   Expert: Chronos | Weight: 0.2901
+Sample 22:
+   Expert: Time-MoE | Weight: 0.3500
+   Expert: Chronos | Weight: 0.2727
+Sample 23:
+   Expert: Moirai | Weight: 0.2666
+   Expert: Chronos | Weight: 0.2236
+Sample 24:
+   Expert: Moirai | Weight: 0.5055
+   Expert: Time-MoE | Weight: 0.1550
+Sample 25:
+   Expert: Time-MoE | Weight: 0.3337
+   Expert: Moirai | Weight: 0.2639
+Sample 26:
+   Expert: Moirai | Weight: 0.2734
+   Expert: Time-MoE | Weight: 0.2283
+Sample 27:
+   Expert: Time-MoE | Weight: 0.3329
+   Expert: Moirai | Weight: 0.2871
+Sample 28:
+   Expert: Moirai | Weight: 0.2573
+   Expert: TimesFM | Weight: 0.1962
+Sample 29:
+   Expert: Time-MoE | Weight: 0.3645
+   Expert: Moirai | Weight: 0.2544
+Sample 30:
+   Expert: Time-MoE | Weight: 0.3029
+   Expert: Chronos | Weight: 0.2617
+Sample 31:
+   Expert: Moirai | Weight: 0.2248
+   Expert: TimesFM | Weight: 0.2218
+===============================================
+
+
+=== Selected experts and weights per sample ===
+Sample 0:
+   Expert: Moirai | Weight: 0.4317
+   Expert: Time-MoE | Weight: 0.1723
+Sample 1:
+   Expert: Time-MoE | Weight: 0.3665
+   Expert: Moirai | Weight: 0.2579
+Sample 2:
+   Expert: Chronos | Weight: 0.2481
+   Expert: Time-MoE | Weight: 0.2282
+Sample 3:
+   Expert: Time-MoE | Weight: 0.3408
+   Expert: Moirai | Weight: 0.2848
+Sample 4:
+   Expert: Moirai | Weight: 0.2515
+   Expert: TimesFM | Weight: 0.2158
+Sample 5:
+   Expert: Time-MoE | Weight: 0.3562
+   Expert: Chronos | Weight: 0.2755
+Sample 6:
+   Expert: Time-MoE | Weight: 0.2846
+   Expert: Moirai | Weight: 0.2625
+Sample 7:
+   Expert: Moirai | Weight: 0.2106
+   Expert: Chronos | Weight: 0.2090
+Sample 8:
+   Expert: Moirai | Weight: 0.3816
+   Expert: Time-MoE | Weight: 0.2058
+Sample 9:
+   Expert: Time-MoE | Weight: 0.3552
+   Expert: Moirai | Weight: 0.2631
+Sample 10:
+   Expert: Time-MoE | Weight: 0.3147
+   Expert: Chronos | Weight: 0.2510
+Sample 11:
+   Expert: Moirai | Weight: 0.3448
+   Expert: Time-MoE | Weight: 0.3226
+Sample 12:
+   Expert: Chronos | Weight: 0.2111
+   Expert: TimesFM | Weight: 0.2033
+Sample 13:
+   Expert: Time-MoE | Weight: 0.3417
+   Expert: Chronos | Weight: 0.3249
+Sample 14:
+   Expert: Time-MoE | Weight: 0.2709
+   Expert: Moirai | Weight: 0.2617
+Sample 15:
+   Expert: TimesFM | Weight: 0.2181
+   Expert: Moirai | Weight: 0.2137
+Sample 16:
+   Expert: Moirai | Weight: 0.4017
+   Expert: Time-MoE | Weight: 0.1678
+Sample 17:
+   Expert: Time-MoE | Weight: 0.3350
+   Expert: Moirai | Weight: 0.2743
+Sample 18:
+   Expert: Moirai | Weight: 0.2831
+   Expert: Chronos | Weight: 0.2127
+Sample 19:
+   Expert: Time-MoE | Weight: 0.3503
+   Expert: Moirai | Weight: 0.3111
+Sample 20:
+   Expert: Time-MoE | Weight: 0.4012
+   Expert: Chronos | Weight: 0.3371
+Sample 21:
+   Expert: Time-MoE | Weight: 0.3251
+   Expert: Chronos | Weight: 0.2603
+Sample 22:
+   Expert: Time-MoE | Weight: 0.3737
+   Expert: Chronos | Weight: 0.2879
+Sample 23:
+   Expert: Moirai | Weight: 0.2736
+   Expert: TimesFM | Weight: 0.1955
+Sample 24:
+   Expert: Moirai | Weight: 0.4449
+   Expert: Time-MoE | Weight: 0.1889
+Sample 25:
+   Expert: Time-MoE | Weight: 0.3752
+   Expert: Chronos | Weight: 0.2556
+Sample 26:
+   Expert: Time-MoE | Weight: 0.2189
+   Expert: Moirai | Weight: 0.2178
+Sample 27:
+   Expert: Time-MoE | Weight: 0.3689
+   Expert: Chronos | Weight: 0.2724
+Sample 28:
+   Expert: Chronos | Weight: 0.2884
+   Expert: Time-MoE | Weight: 0.2533
+Sample 29:
+   Expert: Time-MoE | Weight: 0.3492
+   Expert: Chronos | Weight: 0.2789
+Sample 30:
+   Expert: Moirai | Weight: 0.3017
+   Expert: Time-MoE | Weight: 0.2822
+Sample 31:
+   Expert: Chronos | Weight: 0.3316
+   Expert: Time-MoE | Weight: 0.2695
+===============================================
+
+
+=== Selected experts and weights per sample ===
+Sample 0:
+   Expert: Moirai | Weight: 0.3673
+   Expert: Time-MoE | Weight: 0.2623
+Sample 1:
+   Expert: Time-MoE | Weight: 0.3961
+   Expert: Chronos | Weight: 0.2702
+Sample 2:
+   Expert: Time-MoE | Weight: 0.3071
+   Expert: Moirai | Weight: 0.2896
+Sample 3:
+   Expert: Time-MoE | Weight: 0.3421
+   Expert: Moirai | Weight: 0.3126
+Sample 4:
+   Expert: Chronos | Weight: 0.3411
+   Expert: Time-MoE | Weight: 0.3317
+Sample 5:
+   Expert: Time-MoE | Weight: 0.3330
+   Expert: Moirai | Weight: 0.2579
+Sample 6:
+   Expert: Time-MoE | Weight: 0.3505
+   Expert: Chronos | Weight: 0.2676
+Sample 7:
+   Expert: Moirai | Weight: 0.2448
+   Expert: Chronos | Weight: 0.2064
+Sample 8:
+   Expert: Moirai | Weight: 0.5613
+   Expert: Time-MoE | Weight: 0.1624
+Sample 9:
+   Expert: Time-MoE | Weight: 0.3637
+   Expert: Moirai | Weight: 0.2591
+Sample 10:
+   Expert: Chronos | Weight: 0.2803
+   Expert: Time-MoE | Weight: 0.2735
+Sample 11:
+   Expert: Time-MoE | Weight: 0.3423
+   Expert: Moirai | Weight: 0.3002
+Sample 12:
+   Expert: Time-MoE | Weight: 0.2511
+   Expert: Moirai | Weight: 0.2405
+Sample 13:
+   Expert: Time-MoE | Weight: 0.3602
+   Expert: Moirai | Weight: 0.2591
+Sample 14:
+   Expert: Time-MoE | Weight: 0.3570
+   Expert: Chronos | Weight: 0.2776
+Sample 15:
+   Expert: Moirai | Weight: 0.3266
+   Expert: TimesFM | Weight: 0.1947
+===============================================
+
+=== Selected experts and weights per sample ===
+Sample 0:
+   Expert: Moirai | Weight: 0.5415
+   Expert: Time-MoE | Weight: 0.1692
+Sample 1:
+   Expert: Time-MoE | Weight: 0.4010
+   Expert: Moirai | Weight: 0.2384
+Sample 2:
+   Expert: Chronos | Weight: 0.2730
+   Expert: Time-MoE | Weight: 0.2580
+Sample 3:
+   Expert: Time-MoE | Weight: 0.3734
+   Expert: Moirai | Weight: 0.2843
+Sample 4:
+   Expert: Moirai | Weight: 0.2673
+   Expert: Time-MoE | Weight: 0.2567
+Sample 5:
+   Expert: Time-MoE | Weight: 0.3626
+   Expert: Chronos | Weight: 0.2446
+Sample 6:
+   Expert: Time-MoE | Weight: 0.3399
+   Expert: Moirai | Weight: 0.2919
+Sample 7:
+   Expert: Moirai | Weight: 0.3464
+   Expert: TimesFM | Weight: 0.1750
+Sample 8:
+   Expert: Moirai | Weight: 0.5487
+   Expert: Time-MoE | Weight: 0.1832
+Sample 9:
+   Expert: Time-MoE | Weight: 0.3847
+   Expert: Moirai | Weight: 0.2431
+Sample 10:
+   Expert: Time-MoE | Weight: 0.3037
+   Expert: Chronos | Weight: 0.2624
+Sample 11:
+   Expert: Time-MoE | Weight: 0.3515
+   Expert: Moirai | Weight: 0.2946
+Sample 12:
+   Expert: Moirai | Weight: 0.3077
+   Expert: Time-MoE | Weight: 0.2158
+Sample 13:
+   Expert: Time-MoE | Weight: 0.3890
+   Expert: Chronos | Weight: 0.2647
+Sample 14:
+   Expert: Time-MoE | Weight: 0.3964
+   Expert: Chronos | Weight: 0.3044
+Sample 15:
+   Expert: Moirai | Weight: 0.2991
+   Expert: TimesFM | Weight: 0.1946
+Sample 16:
+   Expert: Moirai | Weight: 0.3341
+   Expert: Time-MoE | Weight: 0.2041
+Sample 17:
+   Expert: Time-MoE | Weight: 0.3766
+   Expert: Moirai | Weight: 0.2645
+Sample 18:
+   Expert: Moirai | Weight: 0.3171
+   Expert: Time-MoE | Weight: 0.2518
+Sample 19:
+   Expert: Time-MoE | Weight: 0.3485
+   Expert: Moirai | Weight: 0.3133
+Sample 20:
+   Expert: Moirai | Weight: 0.2367
+   Expert: TimesFM | Weight: 0.2100
+Sample 21:
+   Expert: Time-MoE | Weight: 0.3025
+   Expert: Moirai | Weight: 0.2838
+Sample 22:
+   Expert: Time-MoE | Weight: 0.3184
+   Expert: Chronos | Weight: 0.2592
+Sample 23:
+   Expert: Time-MoE | Weight: 0.2050
+   Expert: Moirai | Weight: 0.2048
+Sample 24:
+   Expert: Moirai | Weight: 0.4957
+   Expert: Time-MoE | Weight: 0.1522
+Sample 25:
+   Expert: Time-MoE | Weight: 0.3779
+   Expert: Moirai | Weight: 0.2545
+Sample 26:
+   Expert: Moirai | Weight: 0.3041
+   Expert: Time-MoE | Weight: 0.2534
+Sample 27:
+   Expert: Moirai | Weight: 0.3495
+   Expert: Time-MoE | Weight: 0.2618
+Sample 28:
+   Expert: Moirai | Weight: 0.2749
+   Expert: Time-MoE | Weight: 0.2726
+Sample 29:
+   Expert: Time-MoE | Weight: 0.3711
+   Expert: Moirai | Weight: 0.2631
+Sample 30:
+   Expert: Time-MoE | Weight: 0.3783
+   Expert: Chronos | Weight: 0.3065
+Sample 31:
+   Expert: Moirai | Weight: 0.2583
+   Expert: Chronos | Weight: 0.2088
+===============================================
+
+
+=== Selected experts and weights per sample ===
+Sample 0:
+   Expert: Moirai | Weight: 0.4579
+   Expert: Time-MoE | Weight: 0.1877
+Sample 1:
+   Expert: Time-MoE | Weight: 0.4024
+   Expert: Moirai | Weight: 0.2551
+Sample 2:
+   Expert: Time-MoE | Weight: 0.2716
+   Expert: Chronos | Weight: 0.2552
+Sample 3:
+   Expert: Time-MoE | Weight: 0.3682
+   Expert: Moirai | Weight: 0.3139
+Sample 4:
+   Expert: Chronos | Weight: 0.2178
+   Expert: Time-MoE | Weight: 0.2061
+Sample 5:
+   Expert: Time-MoE | Weight: 0.4059
+   Expert: Chronos | Weight: 0.2495
+Sample 6:
+   Expert: Time-MoE | Weight: 0.3858
+   Expert: Moirai | Weight: 0.2613
+Sample 7:
+   Expert: Moirai | Weight: 0.2647
+   Expert: TimesFM | Weight: 0.2052
+Sample 8:
+   Expert: Moirai | Weight: 0.3777
+   Expert: Time-MoE | Weight: 0.2273
+Sample 9:
+   Expert: Time-MoE | Weight: 0.3799
+   Expert: Moirai | Weight: 0.2606
+Sample 10:
+   Expert: Time-MoE | Weight: 0.3280
+   Expert: Moirai | Weight: 0.3051
+Sample 11:
+   Expert: Moirai | Weight: 0.3549
+   Expert: Time-MoE | Weight: 0.3006
+Sample 12:
+   Expert: Time-MoE | Weight: 0.2865
+   Expert: Moirai | Weight: 0.2170
+Sample 13:
+   Expert: Time-MoE | Weight: 0.3456
+   Expert: Moirai | Weight: 0.2752
+Sample 14:
+   Expert: Time-MoE | Weight: 0.3674
+   Expert: Chronos | Weight: 0.2860
+Sample 15:
+   Expert: Moirai | Weight: 0.2403
+   Expert: TimesFM | Weight: 0.2057
+Sample 16:
+   Expert: Moirai | Weight: 0.4555
+   Expert: Time-MoE | Weight: 0.1767
+Sample 17:
+   Expert: Time-MoE | Weight: 0.3823
+   Expert: Moirai | Weight: 0.2597
+Sample 18:
+   Expert: Time-MoE | Weight: 0.2866
+   Expert: Chronos | Weight: 0.2549
+Sample 19:
+   Expert: Time-MoE | Weight: 0.3829
+   Expert: Moirai | Weight: 0.3002
+Sample 20:
+   Expert: Time-MoE | Weight: 0.3442
+   Expert: Moirai | Weight: 0.2341
+Sample 21:
+   Expert: Time-MoE | Weight: 0.3641
+   Expert: Moirai | Weight: 0.2646
+Sample 22:
+   Expert: Time-MoE | Weight: 0.3504
+   Expert: Chronos | Weight: 0.2616
+Sample 23:
+   Expert: Moirai | Weight: 0.2441
+   Expert: Chronos | Weight: 0.2241
+Sample 24:
+   Expert: Moirai | Weight: 0.3817
+   Expert: Time-MoE | Weight: 0.2777
+Sample 25:
+   Expert: Time-MoE | Weight: 0.3854
+   Expert: Chronos | Weight: 0.2495
+Sample 26:
+   Expert: Time-MoE | Weight: 0.3363
+   Expert: Chronos | Weight: 0.2386
+Sample 27:
+   Expert: Time-MoE | Weight: 0.3632
+   Expert: Moirai | Weight: 0.2780
+Sample 28:
+   Expert: Moirai | Weight: 0.3148
+   Expert: Time-MoE | Weight: 0.2042
+Sample 29:
+   Expert: Time-MoE | Weight: 0.3478
+   Expert: Moirai | Weight: 0.2604
+Sample 30:
+   Expert: Time-MoE | Weight: 0.4362
+   Expert: Chronos | Weight: 0.2880
+Sample 31:
+   Expert: Moirai | Weight: 0.3135
+   Expert: Chronos | Weight: 0.1833
+===============================================
+
+
+=== Selected experts and weights per sample ===
+Sample 0:
+   Expert: Moirai | Weight: 0.3503
+   Expert: Chronos | Weight: 0.1784
+Sample 1:
+   Expert: Time-MoE | Weight: 0.3955
+   Expert: Moirai | Weight: 0.2585
+Sample 2:
+   Expert: Time-MoE | Weight: 0.3210
+   Expert: Moirai | Weight: 0.2693
+Sample 3:
+   Expert: Time-MoE | Weight: 0.4381
+   Expert: Moirai | Weight: 0.2569
+Sample 4:
+   Expert: Moirai | Weight: 0.2384
+   Expert: TimesFM | Weight: 0.2126
+Sample 5:
+   Expert: Time-MoE | Weight: 0.3632
+   Expert: Chronos | Weight: 0.2618
+Sample 6:
+   Expert: Time-MoE | Weight: 0.3810
+   Expert: Chronos | Weight: 0.2633
+Sample 7:
+   Expert: Moirai | Weight: 0.2414
+   Expert: TimesFM | Weight: 0.2081
+Sample 8:
+   Expert: Moirai | Weight: 0.4621
+   Expert: Time-MoE | Weight: 0.1652
+Sample 9:
+   Expert: Time-MoE | Weight: 0.4061
+   Expert: Moirai | Weight: 0.2472
+Sample 10:
+   Expert: Time-MoE | Weight: 0.3665
+   Expert: Moirai | Weight: 0.2748
+Sample 11:
+   Expert: Time-MoE | Weight: 0.3767
+   Expert: Moirai | Weight: 0.2706
+Sample 12:
+   Expert: Moirai | Weight: 0.3147
+   Expert: Chronos | Weight: 0.2328
+Sample 13:
+   Expert: Time-MoE | Weight: 0.4055
+   Expert: Chronos | Weight: 0.2491
+Sample 14:
+   Expert: Time-MoE | Weight: 0.3180
+   Expert: Chronos | Weight: 0.2389
+Sample 15:
+   Expert: Moirai | Weight: 0.3195
+   Expert: Chronos | Weight: 0.2277
+Sample 16:
+   Expert: Moirai | Weight: 0.3433
+   Expert: Time-MoE | Weight: 0.2913
+Sample 17:
+   Expert: Time-MoE | Weight: 0.4157
+   Expert: Chronos | Weight: 0.2483
+Sample 18:
+   Expert: Time-MoE | Weight: 0.3145
+   Expert: Moirai | Weight: 0.2248
+Sample 19:
+   Expert: Moirai | Weight: 0.3695
+   Expert: Time-MoE | Weight: 0.2549
+Sample 20:
+   Expert: Moirai | Weight: 0.2667
+   Expert: Chronos | Weight: 0.2061
+Sample 21:
+   Expert: Time-MoE | Weight: 0.3244
+   Expert: Moirai | Weight: 0.2540
+Sample 22:
+   Expert: Time-MoE | Weight: 0.3866
+   Expert: Moirai | Weight: 0.2545
+Sample 23:
+   Expert: Chronos | Weight: 0.2169
+   Expert: TimesFM | Weight: 0.2021
+Sample 24:
+   Expert: Moirai | Weight: 0.4508
+   Expert: Chronos | Weight: 0.1561
+Sample 25:
+   Expert: Time-MoE | Weight: 0.4148
+   Expert: Moirai | Weight: 0.2520
+Sample 26:
+   Expert: Time-MoE | Weight: 0.2874
+   Expert: Moirai | Weight: 0.2415
+Sample 27:
+   Expert: Time-MoE | Weight: 0.3739
+   Expert: Chronos | Weight: 0.2895
+Sample 28:
+   Expert: Moirai | Weight: 0.3076
+   Expert: Chronos | Weight: 0.2611
+Sample 29:
+   Expert: Time-MoE | Weight: 0.3792
+   Expert: Moirai | Weight: 0.2645
+Sample 30:
+   Expert: Time-MoE | Weight: 0.4485
+   Expert: Chronos | Weight: 0.2605
+Sample 31:
+   Expert: Moirai | Weight: 0.3198
+   Expert: Chronos | Weight: 0.2153
+===============================================
+
+
+=== Selected experts and weights per sample ===
+Sample 0:
+   Expert: Moirai | Weight: 0.3495
+   Expert: Time-MoE | Weight: 0.1846
+Sample 1:
+   Expert: Time-MoE | Weight: 0.3855
+   Expert: Moirai | Weight: 0.2595
+Sample 2:
+   Expert: Moirai | Weight: 0.2859
+   Expert: Time-MoE | Weight: 0.2343
+Sample 3:
+   Expert: Time-MoE | Weight: 0.3841
+   Expert: Moirai | Weight: 0.3032
+Sample 4:
+   Expert: Time-MoE | Weight: 0.2484
+   Expert: Timer | Weight: 0.2017
+Sample 5:
+   Expert: Moirai | Weight: 0.3371
+   Expert: Time-MoE | Weight: 0.2506
+Sample 6:
+   Expert: Moirai | Weight: 0.2893
+   Expert: Time-MoE | Weight: 0.2742
+Sample 7:
+   Expert: TimesFM | Weight: 0.2161
+   Expert: Moirai | Weight: 0.2053
+Sample 8:
+   Expert: Moirai | Weight: 0.6124
+   Expert: Time-MoE | Weight: 0.1490
+Sample 9:
+   Expert: Time-MoE | Weight: 0.4656
+   Expert: Moirai | Weight: 0.2184
+Sample 10:
+   Expert: Time-MoE | Weight: 0.2667
+   Expert: Chronos | Weight: 0.2393
+Sample 11:
+   Expert: Time-MoE | Weight: 0.4405
+   Expert: Chronos | Weight: 0.2547
+Sample 12:
+   Expert: Moirai | Weight: 0.2877
+   Expert: TimesFM | Weight: 0.2055
+Sample 13:
+   Expert: Time-MoE | Weight: 0.4353
+   Expert: Chronos | Weight: 0.2463
+Sample 14:
+   Expert: Time-MoE | Weight: 0.4243
+   Expert: Chronos | Weight: 0.2395
+Sample 15:
+   Expert: Moirai | Weight: 0.3103
+   Expert: Time-MoE | Weight: 0.1888
+Sample 16:
+   Expert: Moirai | Weight: 0.5250
+   Expert: Time-MoE | Weight: 0.1715
+Sample 17:
+   Expert: Time-MoE | Weight: 0.4380
+   Expert: Chronos | Weight: 0.2219
+Sample 18:
+   Expert: Moirai | Weight: 0.2321
+   Expert: Time-MoE | Weight: 0.2117
+Sample 19:
+   Expert: Time-MoE | Weight: 0.4288
+   Expert: Moirai | Weight: 0.2705
+Sample 20:
+   Expert: Moirai | Weight: 0.2963
+   Expert: Chronos | Weight: 0.2351
+Sample 21:
+   Expert: Time-MoE | Weight: 0.4573
+   Expert: Chronos | Weight: 0.2755
+Sample 22:
+   Expert: Time-MoE | Weight: 0.3005
+   Expert: Moirai | Weight: 0.2782
+Sample 23:
+   Expert: Moirai | Weight: 0.2966
+   Expert: Chronos | Weight: 0.1995
+Sample 24:
+   Expert: Moirai | Weight: 0.4846
+   Expert: Time-MoE | Weight: 0.1624
+Sample 25:
+   Expert: Time-MoE | Weight: 0.4787
+   Expert: Chronos | Weight: 0.2363
+Sample 26:
+   Expert: Moirai | Weight: 0.3043
+   Expert: Time-MoE | Weight: 0.2261
+Sample 27:
+   Expert: Time-MoE | Weight: 0.4457
+   Expert: Chronos | Weight: 0.2567
+Sample 28:
+   Expert: Moirai | Weight: 0.3136
+   Expert: TimesFM | Weight: 0.1957
+Sample 29:
+   Expert: Time-MoE | Weight: 0.4632
+   Expert: Chronos | Weight: 0.2881
+Sample 30:
+   Expert: Time-MoE | Weight: 0.4230
+   Expert: Chronos | Weight: 0.2417
+Sample 31:
+   Expert: Moirai | Weight: 0.3106
+   Expert: TimesFM | Weight: 0.1812
+===============================================
+
+
+=== Selected experts and weights per sample ===
+Sample 0:
+   Expert: Moirai | Weight: 0.4097
+   Expert: Time-MoE | Weight: 0.2133
+Sample 1:
+   Expert: Time-MoE | Weight: 0.4665
+   Expert: Moirai | Weight: 0.2190
+Sample 2:
+   Expert: Time-MoE | Weight: 0.3568
+   Expert: Chronos | Weight: 0.2116
+Sample 3:
+   Expert: Time-MoE | Weight: 0.4457
+   Expert: Moirai | Weight: 0.2527
+Sample 4:
+   Expert: Moirai | Weight: 0.2721
+   Expert: Time-MoE | Weight: 0.2626
+Sample 5:
+   Expert: Time-MoE | Weight: 0.5167
+   Expert: Chronos | Weight: 0.2330
+Sample 6:
+   Expert: Time-MoE | Weight: 0.4112
+   Expert: Chronos | Weight: 0.2218
+Sample 7:
+   Expert: Moirai | Weight: 0.2214
+   Expert: TimesFM | Weight: 0.2098
+Sample 8:
+   Expert: Moirai | Weight: 0.4604
+   Expert: Time-MoE | Weight: 0.2271
+Sample 9:
+   Expert: Time-MoE | Weight: 0.4325
+   Expert: Moirai | Weight: 0.2310
+Sample 10:
+   Expert: Time-MoE | Weight: 0.3044
+   Expert: Moirai | Weight: 0.2942
+Sample 11:
+   Expert: Moirai | Weight: 0.4085
+   Expert: Time-MoE | Weight: 0.2728
+Sample 12:
+   Expert: Moirai | Weight: 0.2781
+   Expert: Time-MoE | Weight: 0.2609
+Sample 13:
+   Expert: Time-MoE | Weight: 0.3414
+   Expert: Moirai | Weight: 0.2521
+Sample 14:
+   Expert: Time-MoE | Weight: 0.4542
+   Expert: Chronos | Weight: 0.2508
+Sample 15:
+   Expert: Time-MoE | Weight: 0.2231
+   Expert: Chronos | Weight: 0.2124
+Sample 16:
+   Expert: Moirai | Weight: 0.4010
+   Expert: Time-MoE | Weight: 0.2368
+Sample 17:
+   Expert: Time-MoE | Weight: 0.4860
+   Expert: Chronos | Weight: 0.2250
+Sample 18:
+   Expert: Time-MoE | Weight: 0.3304
+   Expert: Moirai | Weight: 0.2633
+Sample 19:
+   Expert: Time-MoE | Weight: 0.4778
+   Expert: Chronos | Weight: 0.2791
+Sample 20:
+   Expert: Moirai | Weight: 0.3320
+   Expert: Chronos | Weight: 0.2263
+Sample 21:
+   Expert: Time-MoE | Weight: 0.4599
+   Expert: Chronos | Weight: 0.2380
+Sample 22:
+   Expert: Time-MoE | Weight: 0.4664
+   Expert: Chronos | Weight: 0.2223
+Sample 23:
+   Expert: Moirai | Weight: 0.2974
+   Expert: Chronos | Weight: 0.2186
+Sample 24:
+   Expert: Moirai | Weight: 0.5866
+   Expert: Time-MoE | Weight: 0.1447
+Sample 25:
+   Expert: Time-MoE | Weight: 0.4468
+   Expert: Moirai | Weight: 0.2251
+Sample 26:
+   Expert: Moirai | Weight: 0.2817
+   Expert: Time-MoE | Weight: 0.2503
+Sample 27:
+   Expert: Time-MoE | Weight: 0.4587
+   Expert: Moirai | Weight: 0.2494
+Sample 28:
+   Expert: Moirai | Weight: 0.2853
+   Expert: Chronos | Weight: 0.1875
+Sample 29:
+   Expert: Time-MoE | Weight: 0.4857
+   Expert: Moirai | Weight: 0.2215
+Sample 30:
+   Expert: Time-MoE | Weight: 0.3797
+   Expert: Chronos | Weight: 0.2315
+Sample 31:
+   Expert: Moirai | Weight: 0.2393
+   Expert: TimesFM | Weight: 0.2160
+===============================================
+
+
+=== Selected experts and weights per sample ===
+Sample 0:
+   Expert: Moirai | Weight: 0.4979
+   Expert: Time-MoE | Weight: 0.1618
+Sample 1:
+   Expert: Time-MoE | Weight: 0.5008
+   Expert: Moirai | Weight: 0.2048
+Sample 2:
+   Expert: Time-MoE | Weight: 0.2461
+   Expert: Chronos | Weight: 0.2419
+Sample 3:
+   Expert: Time-MoE | Weight: 0.4623
+   Expert: Moirai | Weight: 0.2421
+Sample 4:
+   Expert: Moirai | Weight: 0.2812
+   Expert: Time-MoE | Weight: 0.1991
+Sample 5:
+   Expert: Time-MoE | Weight: 0.4826
+   Expert: Chronos | Weight: 0.2197
+Sample 6:
+   Expert: Time-MoE | Weight: 0.3360
+   Expert: Moirai | Weight: 0.2564
+Sample 7:
+   Expert: Moirai | Weight: 0.2223
+   Expert: Chronos | Weight: 0.2079
+Sample 8:
+   Expert: Moirai | Weight: 0.4244
+   Expert: Time-MoE | Weight: 0.2151
+Sample 9:
+   Expert: Time-MoE | Weight: 0.4778
+   Expert: Moirai | Weight: 0.2157
+Sample 10:
+   Expert: Time-MoE | Weight: 0.3700
+   Expert: Moirai | Weight: 0.2487
+Sample 11:
+   Expert: Time-MoE | Weight: 0.4368
+   Expert: Moirai | Weight: 0.3017
+Sample 12:
+   Expert: Chronos | Weight: 0.2113
+   Expert: Time-MoE | Weight: 0.2029
+Sample 13:
+   Expert: Time-MoE | Weight: 0.4520
+   Expert: Chronos | Weight: 0.2700
+Sample 14:
+   Expert: Time-MoE | Weight: 0.3180
+   Expert: Moirai | Weight: 0.2669
+Sample 15:
+   Expert: Moirai | Weight: 0.2196
+   Expert: TimesFM | Weight: 0.2160
+Sample 16:
+   Expert: Moirai | Weight: 0.4664
+   Expert: Time-MoE | Weight: 0.1519
+Sample 17:
+   Expert: Time-MoE | Weight: 0.4465
+   Expert: Moirai | Weight: 0.2308
+Sample 18:
+   Expert: Moirai | Weight: 0.3104
+   Expert: Time-MoE | Weight: 0.2126
+Sample 19:
+   Expert: Time-MoE | Weight: 0.4814
+   Expert: Moirai | Weight: 0.2589
+Sample 20:
+   Expert: Time-MoE | Weight: 0.5532
+   Expert: Chronos | Weight: 0.2562
+Sample 21:
+   Expert: Time-MoE | Weight: 0.4302
+   Expert: Chronos | Weight: 0.2230
+Sample 22:
+   Expert: Time-MoE | Weight: 0.4901
+   Expert: Chronos | Weight: 0.2309
+Sample 23:
+   Expert: Moirai | Weight: 0.3074
+   Expert: Chronos | Weight: 0.1846
+Sample 24:
+   Expert: Moirai | Weight: 0.4774
+   Expert: Time-MoE | Weight: 0.2024
+Sample 25:
+   Expert: Time-MoE | Weight: 0.5150
+   Expert: Chronos | Weight: 0.2005
+Sample 26:
+   Expert: Time-MoE | Weight: 0.2243
+   Expert: Moirai | Weight: 0.2243
+Sample 27:
+   Expert: Time-MoE | Weight: 0.5154
+   Expert: Chronos | Weight: 0.2093
+Sample 28:
+   Expert: Time-MoE | Weight: 0.2864
+   Expert: Chronos | Weight: 0.2771
+Sample 29:
+   Expert: Time-MoE | Weight: 0.4661
+   Expert: Chronos | Weight: 0.2294
+Sample 30:
+   Expert: Time-MoE | Weight: 0.3352
+   Expert: Moirai | Weight: 0.3089
+Sample 31:
+   Expert: Chronos | Weight: 0.3256
+   Expert: Time-MoE | Weight: 0.2982
+===============================================
+
+
+=== Selected experts and weights per sample ===
+Sample 0:
+   Expert: Moirai | Weight: 0.3504
+   Expert: Time-MoE | Weight: 0.3227
+Sample 1:
+   Expert: Time-MoE | Weight: 0.5386
+   Expert: Chronos | Weight: 0.2104
+Sample 2:
+   Expert: Time-MoE | Weight: 0.3684
+   Expert: Moirai | Weight: 0.2807
+Sample 3:
+   Expert: Time-MoE | Weight: 0.4674
+   Expert: Moirai | Weight: 0.2626
+Sample 4:
+   Expert: Time-MoE | Weight: 0.4090
+   Expert: Chronos | Weight: 0.3045
+Sample 5:
+   Expert: Time-MoE | Weight: 0.4381
+   Expert: Moirai | Weight: 0.2179
+Sample 6:
+   Expert: Time-MoE | Weight: 0.4571
+   Expert: Chronos | Weight: 0.2228
+Sample 7:
+   Expert: Moirai | Weight: 0.2628
+   Expert: Chronos | Weight: 0.2051
+Sample 8:
+   Expert: Moirai | Weight: 0.6266
+   Expert: Time-MoE | Weight: 0.1555
+Sample 9:
+   Expert: Time-MoE | Weight: 0.4876
+   Expert: Moirai | Weight: 0.2072
+Sample 10:
+   Expert: Time-MoE | Weight: 0.3118
+   Expert: Chronos | Weight: 0.2650
+Sample 11:
+   Expert: Time-MoE | Weight: 0.4609
+   Expert: Moirai | Weight: 0.2520
+Sample 12:
+   Expert: Time-MoE | Weight: 0.2729
+   Expert: Moirai | Weight: 0.2458
+Sample 13:
+   Expert: Time-MoE | Weight: 0.4817
+   Expert: Moirai | Weight: 0.2132
+Sample 14:
+   Expert: Time-MoE | Weight: 0.4693
+   Expert: Chronos | Weight: 0.2299
+Sample 15:
+   Expert: Moirai | Weight: 0.3787
+   Expert: TimesFM | Weight: 0.1710
+===============================================
