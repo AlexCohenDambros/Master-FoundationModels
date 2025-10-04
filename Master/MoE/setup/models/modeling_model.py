@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import torch
 import torch.nn as nn
@@ -28,8 +29,8 @@ EXPERT_CLASS_MAP = {
 }
 
 logging.basicConfig(
-    filename="log_training.txt",     # Log file name
-    filemode="a",                     # Append mode
+    filename="log_training.txt",     
+    filemode="a",                     
     format="%(asctime)s - %(message)s",
     level=logging.INFO
 )
@@ -423,6 +424,11 @@ def train_and_save(data_path, context_length, horizon, save_path, device="cpu",
     #     Output: trained MoERouter model (object instance)
     # =============================================================================
 
+    logging.info("===============================================")
+    logging.info(f"STARTING TRAINING")
+    logging.info(f"Model will be saved at: {save_path}")
+    logging.info("===============================================")
+
     if detect_anomaly:
         torch.autograd.set_detect_anomaly(True)
 
@@ -494,6 +500,10 @@ def train_and_save(data_path, context_length, horizon, save_path, device="cpu",
         train_loss /= len(train_loader.dataset)
 
         print(f'Epoch {epoch+1}, Train Loss: {train_loss:.4f}')
+
+        logging.info("-----------------------------------------------")
+        logging.info(f"Epoch {epoch+1}/{epochs} | Train Loss: {train_loss:.4f}")
+        logging.info("-----------------------------------------------")
 
         early_stopping(train_loss, model)
 
