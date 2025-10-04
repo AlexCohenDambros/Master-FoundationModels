@@ -377,63 +377,6 @@ def load_jsonl(path):
     return seqs
 
 # -------------------
-# Load Data (with train/test split)
-# -------------------
-def load_jsonl2(path, test_ratio=0.2, seed=42):
-    # -----------------------------------------------------------------------------
-    # PT: Carrega um arquivo no formato JSONL contendo séries temporais com chaves
-    #     variadas, por exemplo:
-    #         {"etanolhidratado_pe": [31059.872, 22527.896, 23241.738]}
-    #         {"gasolinadeaviacao_sp": [174.962, 174.962, 151.817]}
-    #         {"oleocombustivel_pe": [18251.00816, 13803.07041]}
-    #
-    #     - Se state = None → separa treino e teste de forma aleatória
-    #       (80% treino, 20% teste).
-    #     - Se state = "sp" → todas as séries terminadas em "_sp" vão para teste,
-    #       e o restante fica em treino.
-    #
-    #     Retorna: train_dataset, val_dataset
-    #
-    # EN: Loads a JSONL file containing time series with varied keys, e.g.:
-    #         {"etanolhidratado_pe": [31059.872, 22527.896, 23241.738]}
-    #         {"gasolinadeaviacao_sp": [174.962, 174.962, 151.817]}
-    #         {"oleocombustivel_pe": [18251.00816, 13803.07041]}
-    #
-    #     - If state = None → splits into train and test randomly
-    #       (80% train, 20% test).
-    #     - If state = "sp" → all series ending with "_sp" go into test,
-    #       and the rest go into train.
-    #
-    #     Returns: train_dataset, val_dataset
-    # =============================================================================
-
-    random.seed(seed)  
-
-    series = []
-    with open(path, "r", encoding="utf-8") as f:
-        for line in f:
-            l = line.strip()
-            if not l:
-                continue
-            obj = json.loads(l)
-
-            if len(obj) != 1:
-                raise ValueError("Each line must contain exactly one series")
-
-            name, values = list(obj.items())[0]
-            seq = [float(x) for x in values]
-            series.append((name, seq))
-
-    train_dataset, val_dataset = [], []
-
-    random.shuffle(series)
-    split_idx = int(len(series) * (1 - test_ratio))
-    train_dataset = [seq for _, seq in series[:split_idx]]
-    val_dataset = [seq for _, seq in series[split_idx:]]
-
-    return train_dataset, val_dataset
-
-# -------------------
 # Train and Save Model
 # ------------------
 def train_and_save(data_path, context_length, horizon, save_path, device="cpu",
@@ -485,22 +428,15 @@ def train_and_save(data_path, context_length, horizon, save_path, device="cpu",
 
     random.seed(seed)
     torch.manual_seed(seed)
+    
     if "cuda" in device:
         torch.cuda.manual_seed_all(seed)
 
-    # train_dataset, val_dataset = load_jsonl(data_path)
     ds = load_jsonl(data_path)
 
     train_dataset = TimeSeriesDataset(ds, context_length, horizon)
-    # vaL_dataset = TimeSeriesDataset(val_dataset, context_length, horizon)
-
-    # for name, dataset in [("train", train_dataset), ("val", val_dataset)]:
-    #     if len(dataset) == 0:
-    #         raise RuntimeError(f"No samples generated in {name} dataset. "
-    #                            f"Check context_length, horizon, and your data.")
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
-    # val_loader = DataLoader(vaL_dataset, batch_size=batch_size, shuffle=False)
 
     model = MoERouter(context_length=context_length, device=device)
     model.to(device)
@@ -510,40 +446,36 @@ def train_and_save(data_path, context_length, horizon, save_path, device="cpu",
 
     early_stopping = EarlyStopping(patience=3, delta=0.01)
 
-    # TODO: Add MinMax normalization to the data before passing it to experts 
     for epoch in range(epochs):
 
         model.train()
 
         train_loss = 0
-        val_loss = 0
 
         for data, target in train_loader:
             data = data.to(device)
             target = target.to(device)
 
             # -------------------------
-            # Normalização (Standard Scaler)
+            # Standard Scaler
             # -------------------------
-            # mean = data.mean(dim=1, keepdim=True)     # média por série [32,1]
-            # std = data.std(dim=1, keepdim=True)       # desvio padrão por série [32,1]
-            # data_norm = (data - mean) / (std + 1e-8)  # evitar divisão por zero
-            # preds_norm = model(data_norm, context_length=context_length, horizon=horizon)
-            # Desnormaliza previsões
-            # preds = preds_norm * (std + 1e-8) + mean
+            mean = data.mean(dim=1, keepdim=True)     
+            std = data.std(dim=1, keepdim=True)       
+            data_norm = (data - mean) / (std + 1e-8)  
+            preds_norm = model(data_norm, context_length=context_length, horizon=horizon)
+      
+            preds = preds_norm * (std + 1e-8) + mean
 
             # -------------------------
-            # Normalização (Min-Max)
+            # Min-Max
             # -------------------------
-            data_min = data.min(dim=1, keepdim=True).values
-            data_max = data.max(dim=1, keepdim=True).values
-            data_range = (data_max - data_min) + 1e-8  # evitar divisão por zero
+            # data_min = data.min(dim=1, keepdim=True).values
+            # data_max = data.max(dim=1, keepdim=True).values
+            # data_range = (data_max - data_min) + 1e-8 
+            # data_norm_minmax = (data - data_min) / data_range  
+            # preds_norm_minmax = model(data_norm_minmax, context_length=context_length, horizon=horizon)
 
-            data_norm_minmax = (data - data_min) / data_range  # escala para [0,1]
-
-            preds_norm_minmax = model(data_norm_minmax, context_length=context_length, horizon=horizon)
-
-            preds = preds_norm_minmax * data_range + data_min
+            # preds = preds_norm_minmax * data_range + data_min
             
             # -------------------------
             # Normal
@@ -560,23 +492,6 @@ def train_and_save(data_path, context_length, horizon, save_path, device="cpu",
             train_loss += loss.item() * data.size(0)
         
         train_loss /= len(train_loader.dataset)
-
-        # model.eval()
-
-        # with torch.no_grad():
-        #     for data, target in val_loader:
-
-        #         data = data.to(device)
-        #         target = target.to(device)
-
-        #         preds = model(data, context_length=context_length, horizon=horizon)
-
-        #         loss = loss_fn(preds, target)
-        #         val_loss += loss.item() * data.size(0)
-
-        # val_loss /= len(val_loader.dataset)
-
-        # print(f'Epoch {epoch+1}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}')
 
         print(f'Epoch {epoch+1}, Train Loss: {train_loss:.4f}')
 
