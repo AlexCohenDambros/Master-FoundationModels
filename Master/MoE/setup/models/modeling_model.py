@@ -6,12 +6,17 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 import random
 
+import logging
+
 from setup.experts.moirai_expert import MoiraiExpert
 from setup.experts.moiraimoe_expert import MoiraiMoEExpert
 from setup.experts.timemoe_expert import TimeMoEExpert
 from setup.experts.timesfm_expert import TimesFMExpert
 from setup.experts.timer_expert import TimerExpert
 from setup.experts.chronos_expert import ChronosExpert
+
+os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+os.environ["TRANSFORMERS_VERBOSITY"] = "error"
 
 EXPERT_CLASS_MAP = {
     "Moirai": MoiraiExpert,
@@ -21,6 +26,13 @@ EXPERT_CLASS_MAP = {
     "Timer": TimerExpert,
     "Chronos": ChronosExpert,
 }
+
+logging.basicConfig(
+    filename="log_training.txt",     # Log file name
+    filemode="a",                     # Append mode
+    format="%(asctime)s - %(message)s",
+    level=logging.INFO
+)
 
 # -------------------
 # Dataset 
@@ -161,16 +173,19 @@ class MoERouter(nn.Module):
         # EN: get top-k probabilities and their indices per sample -> shapes (batch_size, k)
         topk_vals, topk_idx = torch.topk(probs, k=top_k, dim=-1)
 
-        # >>>>>>> LOG/PRINT <<<<<<<
+        # >>>>>>> LOG <<<<<<<
         # Show selected experts and their weights for each sample
-        print("\n=== Selected experts and weights per sample ===")
-        for i in range(topk_idx.size(0)):                     
+        logging.info("\n=== Selected experts and weights per sample ===")
+
+        for i in range(topk_idx.size(0)):
             chosen_experts = [self.expert_keys[idx.item()] for idx in topk_idx[i]]
             chosen_weights = topk_vals[i].detach().cpu().numpy()
-            print(f"Sample {i}:")
+
+            logging.info(f"Sample {i}:")
             for exp, w in zip(chosen_experts, chosen_weights):
-                print(f"   Expert: {exp} | Weight: {w:.4f}")
-        print("===============================================\n")
+                logging.info(f"   Expert: {exp} | Weight: {w:.4f}")
+
+        logging.info("===============================================\n")
         # >>>>>>> END LOG <<<<<<<
 
         batch_size = x_device.size(0)  # batch_size
@@ -422,7 +437,7 @@ def load_jsonl2(path, test_ratio=0.2, seed=42):
 # Train and Save Model
 # ------------------
 def train_and_save(data_path, context_length, horizon, save_path, device="cpu",
-                   batch_size=32, epochs=5, lr=1e-3, balance_coef=1e-2, seed=0, detect_anomaly=False):
+                   batch_size=32, epochs=20, lr=1e-3, balance_coef=1e-2, seed=0, detect_anomaly=False):
     # =============================================================================
     # PT: Treina apenas o roteador (gating) do modelo MoERouter usando uma base de 
     #     séries temporais e salva o modelo treinado. Os experts permanecem 
