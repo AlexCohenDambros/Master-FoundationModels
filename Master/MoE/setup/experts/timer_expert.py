@@ -10,7 +10,7 @@ class TimerExpert(nn.Module):
     def forward(self, input_tensor: torch.Tensor, context_length: int, prediction_length: int) -> torch.Tensor:
         model = AutoModelForCausalLM.from_pretrained(
             "thuml/sundial-base-128m",
-            trust_remote_code=False,
+            trust_remote_code=True,
 
         )
         model.to(self.device)
