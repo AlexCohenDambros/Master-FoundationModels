@@ -9,23 +9,45 @@ import random
 
 import logging
 
-from setup.experts.moirai_expert import MoiraiExpert
+from Master.MoE.setup.experts.moirai_small_expert import MoiraiSmallExpert
+from Master.MoE.setup.experts.moirai_base_expert import MoiraiBaseExpert
+from Master.MoE.setup.experts.moirai_large_expert import MoiraiLargeExpert
 from setup.experts.moiraimoe_expert import MoiraiMoEExpert
-from setup.experts.timemoe_expert import TimeMoEExpert
+from Master.MoE.setup.experts.timemoe50M_expert import TimeMoE50MExpert
+from Master.MoE.setup.experts.timemoe200M_expert import TimeMoE200MExpert
 from setup.experts.timesfm_expert import TimesFMExpert
 from setup.experts.timer_expert import TimerExpert
-from setup.experts.chronos_expert import ChronosExpert
+from Master.MoE.setup.experts.chronos_t5_tiny import Chronost5TinyExpert
+from Master.MoE.setup.experts.chronos_t5_mini import Chronost5MiniExpert
+from Master.MoE.setup.experts.chronos_t5_small import Chronost5SmallExpert
+from Master.MoE.setup.experts.chronos_t5_base import Chronost5BaseExpert
+from Master.MoE.setup.experts.chronos_t5_large import Chronost5LargeExpert
+from Master.MoE.setup.experts.chronos_bolt_tiny import ChronosBoltTinyExpert
+from Master.MoE.setup.experts.chronos_bolt_mini import ChronosBoltMiniExpert
+from Master.MoE.setup.experts.chronos_bolt_small import ChronosBoltSmallExpert
+from Master.MoE.setup.experts.chronos_bolt_base import ChronosBoltBaseExpert
 
 os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
 os.environ["TRANSFORMERS_VERBOSITY"] = "error"
 
 EXPERT_CLASS_MAP = {
-    "Moirai": MoiraiExpert,
+    "Moirai-Small": MoiraiSmallExpert,
+    "Moirai-Base": MoiraiBaseExpert,
+    "Moirai-Large": MoiraiLargeExpert,
     # "Moirai-MoE": MoiraiMoEExpert,
-    "Time-MoE": TimeMoEExpert,
+    "Time-MoE50M": TimeMoE50MExpert,
+    "Time-MoE200M": TimeMoE200MExpert,
     "TimesFM": TimesFMExpert,
     "Timer": TimerExpert,
-    "Chronos": ChronosExpert,
+    "Chronos-t5-Tiny": Chronost5TinyExpert,
+    "Chronos-t5-Mini": Chronost5MiniExpert,
+    "Chronos-t5-Small": Chronost5SmallExpert,
+    "Chronos-t5-Base": Chronost5BaseExpert,
+    "Chronos-t5-Large": Chronost5LargeExpert,
+    "Chronos-Bolt-Tiny": ChronosBoltTinyExpert,
+    "Chronos-Bolt-Mini": ChronosBoltMiniExpert,
+    "Chronos-Bolt-Small": ChronosBoltSmallExpert,
+    "Chronos-Bolt-Base": ChronosBoltBaseExpert,
 }
 
 logging.basicConfig(

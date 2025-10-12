@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from chronos import BaseChronosPipeline
 
-class ChronosExpert(nn.Module):
+class ChronosBoltMiniExpert(nn.Module):
     def __init__(self, device: str = 'cpu'):
         super().__init__()
         self.device = device
@@ -11,7 +11,7 @@ class ChronosExpert(nn.Module):
         input_tensor = input_tensor.to(self.device)
 
         model = BaseChronosPipeline.from_pretrained(
-            "amazon/chronos-bolt-base",  # use "amazon/chronos-bolt-small" for the corresponding Chronos-Bolt model
+            "amazon/chronos-bolt-mini",  # use "amazon/chronos-bolt-small" for the corresponding Chronos-Bolt model
             device_map=self.device,
             torch_dtype=torch.bfloat16,
         )

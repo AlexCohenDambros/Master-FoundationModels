@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from transformers import AutoModelForCausalLM
 
-class TimeMoEExpert(nn.Module):
+class TimeMoE200MExpert(nn.Module):
     def __init__(self, device: str = 'cpu'):
         super().__init__()
         self.device = device

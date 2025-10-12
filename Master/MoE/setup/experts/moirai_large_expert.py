@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from uni2ts.model.moirai import MoiraiForecast, MoiraiModule
 
-class MoiraiExpert(nn.Module):
+class MoiraiLargeExpert(nn.Module):
     def __init__(self,  device: str = 'cpu'):
         super().__init__()
         self.device = device
