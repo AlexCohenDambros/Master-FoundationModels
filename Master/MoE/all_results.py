@@ -7,6 +7,7 @@ from chronos import BaseChronosPipeline
 import timesfm
 from uni2ts.model.moirai import MoiraiForecast, MoiraiModule
 from setup.models.modeling_model import predict_from_model
+from sklearn.metrics import mean_absolute_percentage_error
 
 # ========================
 # ==== CONFIG ============
@@ -35,7 +36,7 @@ base_path = "../all_datasets_global_by_years"  # para iterar pelos estados
 def process_dataset(state_code, year, context_length):
     """Carrega, filtra e processa o dataset global para um estado e ano específico."""
 
-    train_list, test_list = [], []
+    train_list, test_list, product_names = [], [], []
 
     with open(file_path, "r") as f:
         for line in f:
@@ -45,11 +46,10 @@ def process_dataset(state_code, year, context_length):
                     total_len = context_length + prediction_length
                     if len(value) >= total_len:
                         seq = value[:total_len]
-
-                        # print(seq)
-                
+                        product_name = key.rsplit("_", 1)[0]
                         train_list.append(seq[:-prediction_length])
                         test_list.append(seq[-prediction_length:])
+                        product_names.append(product_name)
 
     if len(train_list) == 0:
         print(f"No valid sequences found for state={state_code}, year={year}")
@@ -200,16 +200,19 @@ def process_dataset(state_code, year, context_length):
 
     results = {}
     for model_name, preds in model_outputs.items():
-        # Ensure no negative predictions
-        preds = preds.clone()  # make a copy to avoid modifying the original tensor
+        preds = preds.clone()
         preds[preds < 0] = 0
+        preds_np = preds.numpy()
+        test_np = tensor_test.numpy()
+        mape_series = []
+        for i in range(preds_np.shape[0]):
+            mape_val = mean_absolute_percentage_error(test_np[i], preds_np[i]) * 100
+            mape_series.append(round(mape_val, 4))
+        results[model_name] = mape_series
 
-        # TODO: develop MAPE without exploding the results
-        mape_series = (torch.abs((tensor_test - preds) / tensor_test)).mean(dim=1) * 100
-        results[model_name] = [round(val.item(), 4) for val in mape_series]
-
-    df_results = pd.DataFrame(results).T
-    df_results.columns = [f"Series {i+1}" for i in range(df_results.shape[1])]
+    df_results = pd.DataFrame(results).T.reset_index()
+    df_results.rename(columns={"index": "Modelo"}, inplace=True)
+    df_results.columns = ["Modelo"] + [p.capitalize() for p in product_names]
     return df_results
 
 
