@@ -242,15 +242,4 @@ for state_folder in sorted(os.listdir(base_path)):
         out_path = os.path.join(results_path, f"results_{state_code}_{year}.csv")
         df_results.to_csv(out_path)
 
-# ========================
-# ==== GLOBAL SUMMARY ====
-# ========================
-summary = {}
-for (state, year), df in all_results.items():
-    mean_per_model = df.mean(axis=1)
-    summary[(state, year)] = mean_per_model
-
-df_summary = pd.DataFrame(summary).T
-df_summary.to_csv("results_summary.csv")
-
 print("Processing complete. All summaries saved.")
