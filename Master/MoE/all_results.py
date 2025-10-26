@@ -2,6 +2,7 @@ import os
 import json
 import torch
 import pandas as pd
+import time
 from transformers import AutoModelForCausalLM
 from chronos import BaseChronosPipeline
 import timesfm
@@ -9,14 +10,12 @@ from uni2ts.model.moirai import MoiraiForecast, MoiraiModule
 from setup.models.modeling_model import predict_from_model
 from sklearn.metrics import mean_absolute_percentage_error
 
-# ========================
-# ==== CONFIG ============
-# ========================
-
 file_path = "../dataset_global/dataset_global.jsonl"
 prediction_length = 12
 results_path = "results_by_state_year"
 os.makedirs(results_path, exist_ok=True)
+times_path = "times_by_state_year"
+os.makedirs(times_path, exist_ok=True)
 
 context_by_year = {
     2024: 398,
@@ -26,16 +25,10 @@ context_by_year = {
     2020: 350
 }
 
-base_path = "../all_datasets_global_by_years"  # para iterar pelos estados
+base_path = "../all_datasets_global_by_years"
 
-
-# ========================
-# ==== PROCESS FUNCTION ===
-# ========================
 
 def process_dataset(state_code, year, context_length):
-    """Carrega, filtra e processa o dataset global para um estado e ano específico."""
-
     train_list, test_list, product_names = [], [], []
 
     with open(file_path, "r") as f:
@@ -53,20 +46,19 @@ def process_dataset(state_code, year, context_length):
 
     if len(train_list) == 0:
         print(f"No valid sequences found for state={state_code}, year={year}")
-        return None
+        return None, None
 
     tensor_train = torch.tensor(train_list, dtype=torch.float32)
     tensor_test = torch.tensor(test_list, dtype=torch.float32)
 
-    # Normalize
     mean_vals = tensor_train.mean(dim=1, keepdim=True)
     std_vals = tensor_train.std(dim=1, keepdim=True)
     std_vals[std_vals == 0] = 1e-8
     tensor_train_scaled = (tensor_train - mean_vals) / std_vals
 
-    # ========================
-    # ==== TIME-MoE ==========
-    # ========================
+    times_dict = {}
+
+    start = time.time()
     model = AutoModelForCausalLM.from_pretrained(
         "Maple728/TimeMoE-200M",
         trust_remote_code=True,
@@ -75,10 +67,9 @@ def process_dataset(state_code, year, context_length):
     output = model.generate(input_timemoe, max_new_tokens=prediction_length)
     output_time_moe_scaled = output[:, -prediction_length:]
     output_time_moe = output_time_moe_scaled * std_vals + mean_vals
+    times_dict["Time-MoE"] = round(time.time() - start, 4)
 
-    # ========================
-    # ==== TIMER =============
-    # ========================
+    start = time.time()
     model = AutoModelForCausalLM.from_pretrained(
         "thuml/sundial-base-128m",
         trust_remote_code=True,
@@ -96,10 +87,9 @@ def process_dataset(state_code, year, context_length):
         outputs.append(out_row)
     output_timer_scaled = torch.cat(outputs, dim=0)
     output_timer = output_timer_scaled * std_vals + mean_vals
+    times_dict["Timer"] = round(time.time() - start, 4)
 
-    # ========================
-    # ==== TimesFM ===========
-    # ========================
+    start = time.time()
     model = timesfm.TimesFm(
         hparams=timesfm.TimesFmHparams(
             backend="cpu",
@@ -118,10 +108,9 @@ def process_dataset(state_code, year, context_length):
         out, _ = model.forecast(input_timesfm)
     output_timesfm_scaled = torch.from_numpy(out).float()
     output_timesfm = output_timesfm_scaled * std_vals + mean_vals
+    times_dict["TimesFM"] = round(time.time() - start, 4)
 
-    # ========================
-    # ==== CHRONOS ===========
-    # ========================
+    start = time.time()
     model = BaseChronosPipeline.from_pretrained(
         "amazon/chronos-bolt-small",
         device_map="cpu",
@@ -134,10 +123,9 @@ def process_dataset(state_code, year, context_length):
             prediction_length=prediction_length,
         )
     output_chronos = output_chronos_scaled * std_vals + mean_vals
+    times_dict["Chronos"] = round(time.time() - start, 4)
 
-    # ========================
-    # ==== MOIRAI ============
-    # ========================
+    start = time.time()
     model = MoiraiForecast(
         module=MoiraiModule.from_pretrained("Salesforce/moirai-1.1-R-small"),
         prediction_length=prediction_length,
@@ -163,13 +151,11 @@ def process_dataset(state_code, year, context_length):
         outputs.append(out_row)
     output_moirai_scaled = torch.cat(outputs, dim=0)
     output_moirai = output_moirai_scaled * std_vals + mean_vals
+    times_dict["Moirai"] = round(time.time() - start, 4)
 
-    # ========================
-    # ==== MY-MoE ============
-    # ========================
+    start = time.time()
     model_path = f"trained_models/excluding_{state_code}/model_excluding_{state_code}_{year}.pt"
     if not os.path.exists(model_path):
-        print(f"⚠️ Model not found: {model_path}. Skipping My-MoE for this dataset.")
         output_my = torch.zeros_like(output_timer)
     else:
         input_my = tensor_train_scaled.clone().detach()
@@ -181,10 +167,8 @@ def process_dataset(state_code, year, context_length):
             device="cpu"
         )
         output_my = output_scaled * std_vals + mean_vals
+    times_dict["My-MoE"] = round(time.time() - start, 4)
 
-    # ========================
-    # ==== SUMMARY ===========
-    # ========================
     model_outputs = {
         "Moirai": output_moirai,
         "Chronos": output_chronos,
@@ -213,12 +197,11 @@ def process_dataset(state_code, year, context_length):
     df_results = pd.DataFrame(results).T.reset_index()
     df_results.rename(columns={"index": "Modelo"}, inplace=True)
     df_results.columns = ["Modelo"] + [p.capitalize() for p in product_names]
-    return df_results
+
+    df_times = pd.DataFrame(list(times_dict.items()), columns=["Modelo", "Tempo (s)"])
+    return df_results, df_times
 
 
-# ========================
-# ==== MAIN LOOP =========
-# ========================
 all_results = {}
 
 for state_folder in sorted(os.listdir(base_path)):
@@ -233,13 +216,16 @@ for state_folder in sorted(os.listdir(base_path)):
 
         print(f"Processing {state_code.upper()} - {year} (context_length={context_length})")
 
-        df_results = process_dataset(state_code, year, context_length)
+        df_results, df_times = process_dataset(state_code, year, context_length)
         if df_results is None:
             continue
 
         all_results[(state_code, year)] = df_results
 
         out_path = os.path.join(results_path, f"results_{state_code}_{year}.csv")
-        df_results.to_csv(out_path)
+        df_results.to_csv(out_path, index=False)
 
-print("Processing complete. All summaries saved.")
+        time_path = os.path.join(times_path, f"times_{state_code}_{year}.csv")
+        df_times.to_csv(time_path, index=False)
+
+print("Processing complete. All summaries and times saved.")
