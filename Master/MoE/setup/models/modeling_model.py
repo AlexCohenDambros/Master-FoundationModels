@@ -307,7 +307,7 @@ class MoERouter(nn.Module):
         EN: Rebuilds the MoERouter from the checkpoint. Requires EXPERT_CLASS_MAP to be available
             and the same key order to be used.
         """
-        ckpt = torch.load(path, map_location=device)
+        ckpt = torch.load(path, map_location=device, weights_only=True)
         model = MoERouter(context_length=context_length, device=device)
         model.gating.load_state_dict(ckpt["gating_state"])
         model.to(device)
