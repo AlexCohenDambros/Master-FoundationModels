@@ -132,6 +132,11 @@ class MoERouter(nn.Module):
         # EN: Gating: maps context vector (size context_length) to logits over experts
         self.gating = nn.Linear(context_length, self.num_experts)
 
+        # PT: Inicializar pesos e bias de forma neutra (todos os experts com a mesma probabilidade inicial)
+        # EN: Initialize weights and bias neutrally (all experts equally likely initially)
+        nn.init.constant_(self.gating.weight, 0.0)
+        nn.init.constant_(self.gating.bias, 0.0)
+
         # PT: Congelar os experts: desativa grad e coloca em eval(). Isso evita alocação de grad acidental dos experts e garante comportamento determinístico.
         # EN: Freeze experts: disables grad and places it in eval(). This prevents accidental grad allocation from experts and ensures deterministic behavior.
         for ex in self.experts.values():
@@ -238,7 +243,31 @@ class MoERouter(nn.Module):
             # PT: chamar expert em modo no_grad (zero-shot, sem computar gradientes)
             # EN: call expert in no_grad mode (zero-shot, no gradients computed)
             with torch.no_grad():
-                out = expert_module(xb_for_expert, context_length=context_length, prediction_length=horizon)
+                expert_name = expert_module.__class__.__name__
+
+                if expert_name in ["TimeMoEExpert"]:
+                    # -------------------------
+                    # Min-Max Normalization
+                    # -------------------------
+                    data_min = xb_for_expert.min(dim=1, keepdim=True).values
+                    data_max = xb_for_expert.max(dim=1, keepdim=True).values
+                    data_range = (data_max - data_min) + 1e-8
+
+                    xb_norm = (xb_for_expert - data_min) / data_range
+                    out_norm = expert_module(xb_norm, context_length=context_length, prediction_length=horizon)
+
+                    out = out_norm * data_range + data_min
+
+                else:
+                    # -------------------------
+                    # Standard Scaler Normalization
+                    # -------------------------
+                    mean = xb_for_expert.mean(dim=1, keepdim=True)
+                    std = xb_for_expert.std(dim=1, keepdim=True)
+                    xb_norm = (xb_for_expert - mean) / (std + 1e-8)
+
+                    out_norm = expert_module(xb_norm, context_length=context_length, prediction_length=horizon)
+                    out = out_norm * (std + 1e-8) + mean
 
             out = out.to(device).float().detach()
             preds_by_expert[expert_idx, idxs, :] = out
@@ -381,7 +410,7 @@ def load_jsonl(path):
 # Train and Save Model
 # ------------------
 def train_and_save(data_path, context_length, horizon, save_path, device="cpu",
-                   batch_size=32, epochs=20, lr=1e-3, balance_coef=1e-2, seed=0, detect_anomaly=False):
+                   batch_size=32, epochs=30, lr=1e-3, balance_coef=1e-2, seed=0, detect_anomaly=False):
     # =============================================================================
     # PT: Treina apenas o roteador (gating) do modelo MoERouter usando uma base de 
     #     séries temporais e salva o modelo treinado. Os experts permanecem 
@@ -461,33 +490,8 @@ def train_and_save(data_path, context_length, horizon, save_path, device="cpu",
         for data, target in train_loader:
             data = data.to(device)
             target = target.to(device)
-
-            # -------------------------
-            # Standard Scaler
-            # -------------------------
-            mean = data.mean(dim=1, keepdim=True)     
-            std = data.std(dim=1, keepdim=True)       
-            data_norm = (data - mean) / (std + 1e-8)  
-            preds_norm = model(data_norm, context_length=context_length, horizon=horizon)
-      
-            preds = preds_norm * (std + 1e-8) + mean
-
-            # -------------------------
-            # Min-Max
-            # -------------------------
-            # data_min = data.min(dim=1, keepdim=True).values
-            # data_max = data.max(dim=1, keepdim=True).values
-            # data_range = (data_max - data_min) + 1e-8 
-            # data_norm_minmax = (data - data_min) / data_range  
-            # preds_norm_minmax = model(data_norm_minmax, context_length=context_length, horizon=horizon)
-
-            # preds = preds_norm_minmax * data_range + data_min
             
-            # -------------------------
-            # Normal
-            # -------------------------
-            # preds = model(data, context_length=context_length, horizon=horizon) 
-            # loss = loss_fn(preds, target)
+            preds = model(data, context_length=context_length, horizon=horizon)
 
             loss = loss_fn(preds, target)
 
