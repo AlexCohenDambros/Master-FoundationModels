@@ -163,6 +163,8 @@ class MoERouter(nn.Module):
         Returns: (batch_size, horizon) combined predictions.
         """
 
+        device = self.device
+
         # PT: move o input para o device do modelo (pode já estar no mesmo device; .to faz nada nesse caso)
         # EN: move the input to the model's device (it may already be on the same device; .to does nothing in that case)
         x_device = x.to(self.device)
@@ -178,24 +180,30 @@ class MoERouter(nn.Module):
         else:
             noisy_logits = logits
 
-        probs = F.softmax(noisy_logits, dim=-1)             # probabilidades por expert (por amostra) / probabilities per expert (per sample) 
+        # probs = F.softmax(noisy_logits, dim=-1)             # probabilidades por expert (por amostra) / probabilities per expert (per sample) 
 
-        # PT: pega top-k probabilidades e seus índices por amostra -> shapes (batch_size, k)
-        # EN: get top-k probabilities and their indices per sample -> shapes (batch_size, k)
-        topk_vals, topk_idx = torch.topk(probs, k=top_k, dim=-1)
+        # # PT: pega top-k probabilidades e seus índices por amostra -> shapes (batch_size, k)
+        # # EN: get top-k probabilities and their indices per sample -> shapes (batch_size, k)
+        # topk_vals, topk_idx = torch.topk(probs, k=top_k, dim=-1)
+        
+        topk_vals, topk_idx = torch.topk(noisy_logits, k=top_k, dim=-1)
+        mask = torch.full_like(noisy_logits, float('-inf'))
+        sparse_logits = mask.scatter(-1, topk_idx, topk_vals)
+        # probs = F.softmax(sparse_logits, dim=-1)
+        probs = F.softmax(sparse_logits - sparse_logits.max(dim=-1, keepdim=True).values, dim=-1)
+
 
         # >>>>>>> LOG <<<<<<<
         # Show selected experts and their weights for each sample
         logging.info("\n=== Selected experts and weights per sample ===")
-
         for i in range(topk_idx.size(0)):
             chosen_experts = [self.expert_keys[idx.item()] for idx in topk_idx[i]]
-            chosen_weights = topk_vals[i].detach().cpu().numpy()
+            # ⬇️ Correção: usar as probabilidades normalizadas
+            chosen_weights = probs[i, topk_idx[i]].detach().cpu().numpy()
 
             logging.info(f"Sample {i}:")
             for exp, w in zip(chosen_experts, chosen_weights):
                 logging.info(f"   Expert: {exp} | Weight: {w:.4f}")
-
         logging.info("===============================================\n")
         # >>>>>>> END LOG <<<<<<<
 
@@ -204,14 +212,7 @@ class MoERouter(nn.Module):
         # PT: tensor final que irá armazenar as predições combinadas (batch_size, horizon)
         # EN: final tensor that will store the combined predictions (batch_size, horizon)
         final_preds = torch.zeros((batch_size, horizon), device=self.device)
-
-        # PT: salvar as informações relevantes para possível cálculo de regularizador (balance loss). usamos detach() para não manter grafo e não aumentar uso de memória
-        # EN: save relevant information for possible regularizer calculation (balance loss). we use detach() to avoid maintaining the graph and not increase memory usage
-        # self.last_logits = logits.detach()
-        # self.last_topk_idx = topk_idx.detach()
-        # self.last_topk_vals = topk_vals.detach()
-
-        device = self.device
+        
 
         '''
         PT: 
@@ -229,74 +230,41 @@ class MoERouter(nn.Module):
         # PT: Para cada expert, coletamos as amostras do batch que o incluíram no top-k; chamamos o expert **uma vez** com o sub-batch (vetorizado) — evita chamar expert N vezes.
         # EN: For each expert, we collect the samples from the batch that included it in the top-k; we call the expert **once** with the (vectorized) sub-batch — avoid calling expert N times.
         for expert_idx in range(self.num_experts):
-
-            # PT: mask: booleano shape (batch_size,) indicando quais amostras possuem esse expert entre seus top-k
-            # EN: mask: boolean shape (batch_size,) indicating which samples have this expert among their top-k
             mask = (topk_idx == expert_idx).any(dim=1)
             idxs = torch.nonzero(mask, as_tuple=False).squeeze(1)
-
             if idxs.numel() == 0:
                 continue
 
-            # PT: extrai o sub-batch que será passado ao expert
-            # EN: extracts the sub-batch that will be passed to the expert
-            xb_for_expert = x_device[idxs].clone()  
-
+            xb_for_expert = x_device[idxs].clone()
             expert_key = self.expert_keys[expert_idx]
             expert_module = self.experts[expert_key]
 
-            # PT: chamar expert em modo no_grad (zero-shot, sem computar gradientes)
-            # EN: call expert in no_grad mode (zero-shot, no gradients computed)
             with torch.no_grad():
                 expert_name = expert_module.__class__.__name__
 
                 if expert_name in ["TimeMoEExpert"]:
-                    # -------------------------
-                    # Min-Max Normalization
-                    # -------------------------
                     data_min = xb_for_expert.min(dim=1, keepdim=True).values
                     data_max = xb_for_expert.max(dim=1, keepdim=True).values
                     data_range = (data_max - data_min) + 1e-8
-
                     xb_norm = (xb_for_expert - data_min) / data_range
                     out_norm = expert_module(xb_norm, context_length=context_length, prediction_length=horizon)
-
                     out = out_norm * data_range + data_min
-
                 else:
-                    # -------------------------
-                    # Standard Scaler Normalization
-                    # -------------------------
                     mean = xb_for_expert.mean(dim=1, keepdim=True)
                     std = xb_for_expert.std(dim=1, keepdim=True)
                     xb_norm = (xb_for_expert - mean) / (std + 1e-8)
-
                     out_norm = expert_module(xb_norm, context_length=context_length, prediction_length=horizon)
                     out = out_norm * (std + 1e-8) + mean
 
             out = out.to(device).float().detach()
             preds_by_expert[expert_idx, idxs, :] = out
 
-        # PT: Agora combinamos as predições *apenas* entre os top-k escolhidos para cada amostra. A implementação abaixo faz isso amostra a amostra (pode ser vetorizada para performance).
-        # EN: Now we combine predictions *only* from the top-k chosen for each sample. The implementation below does this sample by sample (can be vectorized for performance).
+        # PT: Agora combinamos as predições *apenas* entre os top-k escolhidos para cada amostra. 
+        # EN: Now we combine predictions *only* from the top-k chosen for each sample. 
         for i in range(batch_size):
-            vals = topk_vals[i]   # (k,)
-            idxs = topk_idx[i]    # (k,) indices dos experts escolhidos para a amostra i / (k,) indices of the experts chosen for sample i
-
-            # PT: renormaliza pesos entre os top-k (evita soma 0)
-            # EN: renormalizes weights among top-k (avoids sum to 0)
-            s = vals.sum()
-            if s <= 0:
-                weights = vals.new_full(vals.shape, 1.0 / vals.shape[0])
-            else:
-                weights = vals / (s + 1e-8)
-
-            # PT: extrai as predições correspondentes a esses experts para a amostra i: preds_by_expert[idxs, i, :] -> (k, horizon)
-            # EN: extracts the predictions corresponding to these experts for sample i: preds_by_expert[idxs, i, :] -> (k, horizon)
+            idxs = topk_idx[i]
+            weights = probs[i, idxs]              
             chosen_preds = preds_by_expert[idxs, i, :]
-
-            # PT: aplica os pesos e soma para obter predição final (horizon,)
-            # EN: apply the weights and sum to obtain the final prediction (horizon,)
             combined = (weights.unsqueeze(-1) * chosen_preds).sum(dim=0)
             final_preds[i] = combined
 

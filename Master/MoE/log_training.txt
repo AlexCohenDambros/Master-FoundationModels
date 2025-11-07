@@ -1,0 +1,313 @@
+2025-11-06 22:50:12,509 - ===============================================
+2025-11-06 22:50:12,509 - STARTING TRAINING
+2025-11-06 22:50:12,509 - Model will be saved at: trained_models\excluding_ac\model_excluding_ac_2020.pt
+2025-11-06 22:50:12,509 - ===============================================
+2025-11-06 22:50:12,539 - 
+=== Selected experts and weights per sample ===
+2025-11-06 22:50:12,539 - Sample 0:
+2025-11-06 22:50:12,539 -    Expert: Time-MoE | Weight: 1.0000
+2025-11-06 22:50:12,539 -    Expert: Moirai | Weight: 0.0000
+2025-11-06 22:50:12,539 - Sample 1:
+2025-11-06 22:50:12,539 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:50:12,539 -    Expert: Time-MoE | Weight: 0.0000
+2025-11-06 22:50:12,539 - Sample 2:
+2025-11-06 22:50:12,539 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:50:12,539 -    Expert: Chronos | Weight: 0.0000
+2025-11-06 22:50:12,539 - Sample 3:
+2025-11-06 22:50:12,539 -    Expert: Chronos | Weight: 1.0000
+2025-11-06 22:50:12,539 -    Expert: Time-MoE | Weight: 0.0000
+2025-11-06 22:50:12,539 - Sample 4:
+2025-11-06 22:50:12,539 -    Expert: Moirai | Weight: 1.0000
+2025-11-06 22:50:12,539 -    Expert: TimesFM | Weight: 0.0000
+2025-11-06 22:50:12,539 - Sample 5:
+2025-11-06 22:50:12,539 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:50:12,539 -    Expert: Time-MoE | Weight: 0.0000
+2025-11-06 22:50:12,539 - Sample 6:
+2025-11-06 22:50:12,539 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:50:12,539 -    Expert: Timer | Weight: 0.0000
+2025-11-06 22:50:12,539 - Sample 7:
+2025-11-06 22:50:12,539 -    Expert: Time-MoE | Weight: 1.0000
+2025-11-06 22:50:12,539 -    Expert: Timer | Weight: 0.0000
+2025-11-06 22:50:12,539 - Sample 8:
+2025-11-06 22:50:12,539 -    Expert: Time-MoE | Weight: 1.0000
+2025-11-06 22:50:12,539 -    Expert: Timer | Weight: 0.0000
+2025-11-06 22:50:12,539 - Sample 9:
+2025-11-06 22:50:12,539 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:50:12,539 -    Expert: Moirai | Weight: 0.0000
+2025-11-06 22:50:12,539 - Sample 10:
+2025-11-06 22:50:12,539 -    Expert: Chronos | Weight: 1.0000
+2025-11-06 22:50:12,539 -    Expert: Time-MoE | Weight: 0.0000
+2025-11-06 22:50:12,539 - Sample 11:
+2025-11-06 22:50:12,539 -    Expert: Time-MoE | Weight: 1.0000
+2025-11-06 22:50:12,539 -    Expert: TimesFM | Weight: 0.0000
+2025-11-06 22:50:12,539 - Sample 12:
+2025-11-06 22:50:12,539 -    Expert: Time-MoE | Weight: 1.0000
+2025-11-06 22:50:12,539 -    Expert: TimesFM | Weight: 0.0000
+2025-11-06 22:50:12,539 - Sample 13:
+2025-11-06 22:50:12,539 -    Expert: Chronos | Weight: 1.0000
+2025-11-06 22:50:12,539 -    Expert: TimesFM | Weight: 0.0000
+2025-11-06 22:50:12,543 - Sample 14:
+2025-11-06 22:50:12,543 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:50:12,543 -    Expert: Chronos | Weight: 0.0000
+2025-11-06 22:50:12,543 - Sample 15:
+2025-11-06 22:50:12,543 -    Expert: Time-MoE | Weight: 1.0000
+2025-11-06 22:50:12,543 -    Expert: Chronos | Weight: 0.0000
+2025-11-06 22:50:12,543 - Sample 16:
+2025-11-06 22:50:12,543 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:50:12,543 -    Expert: Time-MoE | Weight: 0.0000
+2025-11-06 22:50:12,543 - Sample 17:
+2025-11-06 22:50:12,543 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:50:12,543 -    Expert: Moirai | Weight: 0.0000
+2025-11-06 22:50:12,543 - Sample 18:
+2025-11-06 22:50:12,543 -    Expert: Time-MoE | Weight: 1.0000
+2025-11-06 22:50:12,543 -    Expert: TimesFM | Weight: 0.0000
+2025-11-06 22:50:12,543 - Sample 19:
+2025-11-06 22:50:12,543 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:50:12,543 -    Expert: Time-MoE | Weight: 0.0000
+2025-11-06 22:50:12,543 - Sample 20:
+2025-11-06 22:50:12,543 -    Expert: Chronos | Weight: 1.0000
+2025-11-06 22:50:12,543 -    Expert: Moirai | Weight: 0.0000
+2025-11-06 22:50:12,543 - Sample 21:
+2025-11-06 22:50:12,543 -    Expert: Chronos | Weight: 1.0000
+2025-11-06 22:50:12,543 -    Expert: TimesFM | Weight: 0.0000
+2025-11-06 22:50:12,543 - Sample 22:
+2025-11-06 22:50:12,543 -    Expert: Chronos | Weight: 1.0000
+2025-11-06 22:50:12,543 -    Expert: Timer | Weight: 0.0000
+2025-11-06 22:50:12,543 - Sample 23:
+2025-11-06 22:50:12,543 -    Expert: Time-MoE | Weight: 0.9997
+2025-11-06 22:50:12,543 -    Expert: TimesFM | Weight: 0.0003
+2025-11-06 22:50:12,543 - Sample 24:
+2025-11-06 22:50:12,543 -    Expert: Time-MoE | Weight: 1.0000
+2025-11-06 22:50:12,543 -    Expert: TimesFM | Weight: 0.0000
+2025-11-06 22:50:12,543 - Sample 25:
+2025-11-06 22:50:12,543 -    Expert: Moirai | Weight: 1.0000
+2025-11-06 22:50:12,543 -    Expert: Time-MoE | Weight: 0.0000
+2025-11-06 22:50:12,543 - Sample 26:
+2025-11-06 22:50:12,543 -    Expert: Moirai | Weight: 1.0000
+2025-11-06 22:50:12,543 -    Expert: Chronos | Weight: 0.0000
+2025-11-06 22:50:12,543 - Sample 27:
+2025-11-06 22:50:12,543 -    Expert: Time-MoE | Weight: 1.0000
+2025-11-06 22:50:12,543 -    Expert: TimesFM | Weight: 0.0000
+2025-11-06 22:50:12,543 - Sample 28:
+2025-11-06 22:50:12,543 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:50:12,543 -    Expert: Time-MoE | Weight: 0.0000
+2025-11-06 22:50:12,543 - Sample 29:
+2025-11-06 22:50:12,543 -    Expert: Time-MoE | Weight: 1.0000
+2025-11-06 22:50:12,543 -    Expert: TimesFM | Weight: 0.0000
+2025-11-06 22:50:12,543 - Sample 30:
+2025-11-06 22:50:12,543 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:50:12,543 -    Expert: Chronos | Weight: 0.0000
+2025-11-06 22:50:12,543 - Sample 31:
+2025-11-06 22:50:12,543 -    Expert: Time-MoE | Weight: 1.0000
+2025-11-06 22:50:12,543 -    Expert: TimesFM | Weight: 0.0000
+2025-11-06 22:50:12,543 - ===============================================
+
+2025-11-06 22:50:41,471 - Loading checkpoint from C:\Users\alex-\.cache\huggingface\hub\models--google--timesfm-2.0-500m-pytorch\snapshots\dc2443792ce5516872b89b37cf1bc058c3bf0c10\torch_model.ckpt
+2025-11-06 22:50:41,748 - Sending checkpoint to device cpu
+2025-11-06 22:50:41,758 - No frequency provided via `freq`. Default to high (0).
+2025-11-06 22:51:00,173 - 
+=== Selected experts and weights per sample ===
+2025-11-06 22:51:00,176 - Sample 0:
+2025-11-06 22:51:00,176 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:51:00,176 -    Expert: Time-MoE | Weight: 0.0000
+2025-11-06 22:51:00,176 - Sample 1:
+2025-11-06 22:51:00,176 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:51:00,176 -    Expert: Time-MoE | Weight: 0.0000
+2025-11-06 22:51:00,176 - Sample 2:
+2025-11-06 22:51:00,176 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:51:00,176 -    Expert: Chronos | Weight: 0.0000
+2025-11-06 22:51:00,176 - Sample 3:
+2025-11-06 22:51:00,176 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:51:00,176 -    Expert: Timer | Weight: 0.0000
+2025-11-06 22:51:00,176 - Sample 4:
+2025-11-06 22:51:00,176 -    Expert: Time-MoE | Weight: 1.0000
+2025-11-06 22:51:00,176 -    Expert: Moirai | Weight: 0.0000
+2025-11-06 22:51:00,176 - Sample 5:
+2025-11-06 22:51:00,176 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:51:00,176 -    Expert: Chronos | Weight: 0.0000
+2025-11-06 22:51:00,176 - Sample 6:
+2025-11-06 22:51:00,176 -    Expert: Chronos | Weight: 1.0000
+2025-11-06 22:51:00,176 -    Expert: TimesFM | Weight: 0.0000
+2025-11-06 22:51:00,176 - Sample 7:
+2025-11-06 22:51:00,176 -    Expert: Time-MoE | Weight: 1.0000
+2025-11-06 22:51:00,176 -    Expert: Moirai | Weight: 0.0000
+2025-11-06 22:51:00,176 - Sample 8:
+2025-11-06 22:51:00,176 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:51:00,176 -    Expert: Time-MoE | Weight: 0.0000
+2025-11-06 22:51:00,176 - Sample 9:
+2025-11-06 22:51:00,176 -    Expert: Moirai | Weight: 1.0000
+2025-11-06 22:51:00,176 -    Expert: Chronos | Weight: 0.0000
+2025-11-06 22:51:00,178 - Sample 10:
+2025-11-06 22:51:00,178 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:51:00,178 -    Expert: Chronos | Weight: 0.0000
+2025-11-06 22:51:00,178 - Sample 11:
+2025-11-06 22:51:00,178 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:51:00,178 -    Expert: Time-MoE | Weight: 0.0000
+2025-11-06 22:51:00,178 - Sample 12:
+2025-11-06 22:51:00,178 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:51:00,178 -    Expert: Moirai | Weight: 0.0000
+2025-11-06 22:51:00,178 - Sample 13:
+2025-11-06 22:51:00,178 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:51:00,178 -    Expert: Chronos | Weight: 0.0000
+2025-11-06 22:51:00,178 - Sample 14:
+2025-11-06 22:51:00,178 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:51:00,178 -    Expert: Time-MoE | Weight: 0.0000
+2025-11-06 22:51:00,178 - Sample 15:
+2025-11-06 22:51:00,178 -    Expert: Time-MoE | Weight: 0.9725
+2025-11-06 22:51:00,178 -    Expert: Timer | Weight: 0.0275
+2025-11-06 22:51:00,178 - Sample 16:
+2025-11-06 22:51:00,178 -    Expert: Time-MoE | Weight: 1.0000
+2025-11-06 22:51:00,178 -    Expert: TimesFM | Weight: 0.0000
+2025-11-06 22:51:00,178 - Sample 17:
+2025-11-06 22:51:00,178 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:51:00,178 -    Expert: Time-MoE | Weight: 0.0000
+2025-11-06 22:51:00,178 - Sample 18:
+2025-11-06 22:51:00,178 -    Expert: Chronos | Weight: 1.0000
+2025-11-06 22:51:00,178 -    Expert: TimesFM | Weight: 0.0000
+2025-11-06 22:51:00,178 - Sample 19:
+2025-11-06 22:51:00,178 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:51:00,178 -    Expert: Timer | Weight: 0.0000
+2025-11-06 22:51:00,178 - Sample 20:
+2025-11-06 22:51:00,178 -    Expert: Moirai | Weight: 1.0000
+2025-11-06 22:51:00,178 -    Expert: TimesFM | Weight: 0.0000
+2025-11-06 22:51:00,178 - Sample 21:
+2025-11-06 22:51:00,178 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:51:00,178 -    Expert: Moirai | Weight: 0.0000
+2025-11-06 22:51:00,178 - Sample 22:
+2025-11-06 22:51:00,178 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:51:00,178 -    Expert: Time-MoE | Weight: 0.0000
+2025-11-06 22:51:00,178 - Sample 23:
+2025-11-06 22:51:00,178 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:51:00,178 -    Expert: Time-MoE | Weight: 0.0000
+2025-11-06 22:51:00,178 - Sample 24:
+2025-11-06 22:51:00,178 -    Expert: Time-MoE | Weight: 1.0000
+2025-11-06 22:51:00,178 -    Expert: Timer | Weight: 0.0000
+2025-11-06 22:51:00,178 - Sample 25:
+2025-11-06 22:51:00,178 -    Expert: Chronos | Weight: 1.0000
+2025-11-06 22:51:00,178 -    Expert: TimesFM | Weight: 0.0000
+2025-11-06 22:51:00,178 - Sample 26:
+2025-11-06 22:51:00,178 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:51:00,178 -    Expert: Timer | Weight: 0.0000
+2025-11-06 22:51:00,178 - Sample 27:
+2025-11-06 22:51:00,178 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:51:00,178 -    Expert: Chronos | Weight: 0.0000
+2025-11-06 22:51:00,178 - Sample 28:
+2025-11-06 22:51:00,178 -    Expert: Time-MoE | Weight: 1.0000
+2025-11-06 22:51:00,178 -    Expert: Timer | Weight: 0.0000
+2025-11-06 22:51:00,178 - Sample 29:
+2025-11-06 22:51:00,178 -    Expert: Time-MoE | Weight: 1.0000
+2025-11-06 22:51:00,178 -    Expert: TimesFM | Weight: 0.0000
+2025-11-06 22:51:00,178 - Sample 30:
+2025-11-06 22:51:00,178 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:51:00,178 -    Expert: Time-MoE | Weight: 0.0000
+2025-11-06 22:51:00,178 - Sample 31:
+2025-11-06 22:51:00,178 -    Expert: Time-MoE | Weight: 1.0000
+2025-11-06 22:51:00,178 -    Expert: Timer | Weight: 0.0000
+2025-11-06 22:51:00,178 - ===============================================
+
+2025-11-06 22:51:27,168 - Loading checkpoint from C:\Users\alex-\.cache\huggingface\hub\models--google--timesfm-2.0-500m-pytorch\snapshots\dc2443792ce5516872b89b37cf1bc058c3bf0c10\torch_model.ckpt
+2025-11-06 22:51:27,439 - Sending checkpoint to device cpu
+2025-11-06 22:51:27,449 - No frequency provided via `freq`. Default to high (0).
+2025-11-06 22:51:46,096 - 
+=== Selected experts and weights per sample ===
+2025-11-06 22:51:46,096 - Sample 0:
+2025-11-06 22:51:46,096 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:51:46,096 -    Expert: Time-MoE | Weight: 0.0000
+2025-11-06 22:51:46,096 - Sample 1:
+2025-11-06 22:51:46,096 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:51:46,096 -    Expert: Chronos | Weight: 0.0000
+2025-11-06 22:51:46,096 - Sample 2:
+2025-11-06 22:51:46,096 -    Expert: Time-MoE | Weight: 1.0000
+2025-11-06 22:51:46,096 -    Expert: Timer | Weight: 0.0000
+2025-11-06 22:51:46,096 - Sample 3:
+2025-11-06 22:51:46,096 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:51:46,096 -    Expert: Chronos | Weight: 0.0000
+2025-11-06 22:51:46,096 - Sample 4:
+2025-11-06 22:51:46,096 -    Expert: TimesFM | Weight: 0.9994
+2025-11-06 22:51:46,096 -    Expert: Timer | Weight: 0.0006
+2025-11-06 22:51:46,098 - Sample 5:
+2025-11-06 22:51:46,098 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:51:46,098 -    Expert: Chronos | Weight: 0.0000
+2025-11-06 22:51:46,098 - Sample 6:
+2025-11-06 22:51:46,098 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:51:46,098 -    Expert: Time-MoE | Weight: 0.0000
+2025-11-06 22:51:46,098 - Sample 7:
+2025-11-06 22:51:46,098 -    Expert: Timer | Weight: 0.5095
+2025-11-06 22:51:46,098 -    Expert: TimesFM | Weight: 0.4905
+2025-11-06 22:51:46,098 - Sample 8:
+2025-11-06 22:51:46,098 -    Expert: Time-MoE | Weight: 1.0000
+2025-11-06 22:51:46,098 -    Expert: Timer | Weight: 0.0000
+2025-11-06 22:51:46,098 - Sample 9:
+2025-11-06 22:51:46,098 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:51:46,098 -    Expert: Moirai | Weight: 0.0000
+2025-11-06 22:51:46,098 - Sample 10:
+2025-11-06 22:51:46,098 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:51:46,098 -    Expert: Timer | Weight: 0.0000
+2025-11-06 22:51:46,098 - Sample 11:
+2025-11-06 22:51:46,098 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:51:46,098 -    Expert: Time-MoE | Weight: 0.0000
+2025-11-06 22:51:46,098 - Sample 12:
+2025-11-06 22:51:46,098 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:51:46,098 -    Expert: Time-MoE | Weight: 0.0000
+2025-11-06 22:51:46,098 - Sample 13:
+2025-11-06 22:51:46,098 -    Expert: Chronos | Weight: 1.0000
+2025-11-06 22:51:46,098 -    Expert: Moirai | Weight: 0.0000
+2025-11-06 22:51:46,098 - Sample 14:
+2025-11-06 22:51:46,098 -    Expert: Timer | Weight: 1.0000
+2025-11-06 22:51:46,098 -    Expert: TimesFM | Weight: 0.0000
+2025-11-06 22:51:46,098 - Sample 15:
+2025-11-06 22:51:46,098 -    Expert: Time-MoE | Weight: 1.0000
+2025-11-06 22:51:46,098 -    Expert: Timer | Weight: 0.0000
+2025-11-06 22:51:46,098 - Sample 16:
+2025-11-06 22:51:46,098 -    Expert: Moirai | Weight: 1.0000
+2025-11-06 22:51:46,098 -    Expert: Chronos | Weight: 0.0000
+2025-11-06 22:51:46,098 - Sample 17:
+2025-11-06 22:51:46,098 -    Expert: Moirai | Weight: 1.0000
+2025-11-06 22:51:46,098 -    Expert: TimesFM | Weight: 0.0000
+2025-11-06 22:51:46,098 - Sample 18:
+2025-11-06 22:51:46,098 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:51:46,098 -    Expert: Time-MoE | Weight: 0.0000
+2025-11-06 22:51:46,098 - Sample 19:
+2025-11-06 22:51:46,098 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:51:46,098 -    Expert: Moirai | Weight: 0.0000
+2025-11-06 22:51:46,098 - Sample 20:
+2025-11-06 22:51:46,098 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:51:46,098 -    Expert: Chronos | Weight: 0.0000
+2025-11-06 22:51:46,098 - Sample 21:
+2025-11-06 22:51:46,098 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:51:46,098 -    Expert: Time-MoE | Weight: 0.0000
+2025-11-06 22:51:46,098 - Sample 22:
+2025-11-06 22:51:46,098 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:51:46,098 -    Expert: Time-MoE | Weight: 0.0000
+2025-11-06 22:51:46,098 - Sample 23:
+2025-11-06 22:51:46,098 -    Expert: Time-MoE | Weight: 1.0000
+2025-11-06 22:51:46,098 -    Expert: Moirai | Weight: 0.0000
+2025-11-06 22:51:46,098 - Sample 24:
+2025-11-06 22:51:46,098 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:51:46,098 -    Expert: Time-MoE | Weight: 0.0000
+2025-11-06 22:51:46,098 - Sample 25:
+2025-11-06 22:51:46,098 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:51:46,098 -    Expert: Moirai | Weight: 0.0000
+2025-11-06 22:51:46,098 - Sample 26:
+2025-11-06 22:51:46,098 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:51:46,098 -    Expert: Timer | Weight: 0.0000
+2025-11-06 22:51:46,098 - Sample 27:
+2025-11-06 22:51:46,098 -    Expert: Time-MoE | Weight: 1.0000
+2025-11-06 22:51:46,098 -    Expert: TimesFM | Weight: 0.0000
+2025-11-06 22:51:46,098 - Sample 28:
+2025-11-06 22:51:46,098 -    Expert: Time-MoE | Weight: 1.0000
+2025-11-06 22:51:46,098 -    Expert: Timer | Weight: 0.0000
+2025-11-06 22:51:46,098 - Sample 29:
+2025-11-06 22:51:46,098 -    Expert: Chronos | Weight: 1.0000
+2025-11-06 22:51:46,098 -    Expert: Moirai | Weight: 0.0000
+2025-11-06 22:51:46,098 - Sample 30:
+2025-11-06 22:51:46,098 -    Expert: TimesFM | Weight: 1.0000
+2025-11-06 22:51:46,098 -    Expert: Chronos | Weight: 0.0000
+2025-11-06 22:51:46,098 - Sample 31:
+2025-11-06 22:51:46,098 -    Expert: Time-MoE | Weight: 1.0000
+2025-11-06 22:51:46,098 -    Expert: TimesFM | Weight: 0.0000
+2025-11-06 22:51:46,098 - ===============================================
+
+2025-11-06 22:52:14,255 - Loading checkpoint from C:\Users\alex-\.cache\huggingface\hub\models--google--timesfm-2.0-500m-pytorch\snapshots\dc2443792ce5516872b89b37cf1bc058c3bf0c10\torch_model.ckpt
+2025-11-06 22:52:14,584 - Sending checkpoint to device cpu
+2025-11-06 22:52:14,599 - No frequency provided via `freq`. Default to high (0).

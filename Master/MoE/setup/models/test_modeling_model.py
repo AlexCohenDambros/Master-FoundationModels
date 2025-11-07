@@ -94,209 +94,134 @@ class TimeSeriesDataset(Dataset):
 # MoERouter
 # -------------------
 class MoERouter(nn.Module):
-    # =============================================================================
-    # PT: Roteador (router) do Mixture-of-Experts para séries temporais.
-    #     - Mantém um dicionário de experts (foundation models) instanciados via
-    #       EXPERT_CLASS_MAP.
-    #     - O gating (roteador) é uma camada linear que mapeia o contexto para
-    #       logits sobre os experts. Seleciona top-k experts por amostra, chama
-    #       cada expert em no_grad (zero-shot) e combina predições por pesos.
-    #
-    # EN: Router for Mixture-of-Experts for time-series.
-    #     - Keeps a ModuleDict of experts created from EXPERT_CLASS_MAP.
-    #     - The gating is a linear layer mapping context to logits over experts.
-    #     - Selects top-k experts per sample, calls experts in no_grad (zero-shot)
-    #       and combines predictions by weights.
-    # =============================================================================
+    """
+    Router do Mixture-of-Experts (MoE) para séries temporais.
+    Seleciona top-k experts usando noisy top-k gating + máscara esparsa,
+    chama experts em no_grad (zero-shot) e combina predições ponderadas.
+    """
 
-    def __init__(self, context_length:int, device="cpu"):
+    def __init__(self, context_length: int, device="cpu"):
         super().__init__()
         self.device = device
 
-        # PT: keys dos experts na ordem definida (lista de strings)
-        # EN: keys of experts in the defined order (list of strings)
+        # keys dos experts na ordem definida
         self.expert_keys = list(EXPERT_CLASS_MAP.keys())
-
-        # PT: número de experts
-        # EN: number of experts
         self.num_experts = len(self.expert_keys)
 
-        # PT: Instancia cada expert a partir do mapa (device)
-        # EN: Instantiates each expert from the map (device)
+        # instancia experts
         self.experts = nn.ModuleDict({
             k: EXPERT_CLASS_MAP[k](device=device)
             for k in self.expert_keys
         })
 
-        # PT: Gating: mapeia vetor de contexto (tamanho context_length) para logits sobre experts
-        # EN: Gating: maps context vector (size context_length) to logits over experts
+        # gating + noise linear
         self.gating = nn.Linear(context_length, self.num_experts)
-
         self.noise_linear = nn.Linear(context_length, self.num_experts)
 
-        # PT: Inicializar pesos e bias de forma neutra (todos os experts com a mesma probabilidade inicial)
-        # EN: Initialize weights and bias neutrally (all experts equally likely initially)
-        nn.init.constant_(self.gating.weight, 1/self.num_experts)
-        nn.init.constant_(self.gating.bias, 1/self.num_experts)
+        # Inicializações mais adequadas (quebram simetria)
+        nn.init.xavier_uniform_(self.gating.weight)
+        nn.init.zeros_(self.gating.bias)
 
-        # PT: Congelar os experts: desativa grad e coloca em eval(). Isso evita alocação de grad acidental dos experts e garante comportamento determinístico.
-        # EN: Freeze experts: disables grad and places it in eval(). This prevents accidental grad allocation from experts and ensures deterministic behavior.
+        nn.init.xavier_uniform_(self.noise_linear.weight)
+        nn.init.zeros_(self.noise_linear.bias)
+        # opcional: iniciar bias do noise negativo para ruído inicial menor
+        # nn.init.constant_(self.noise_linear.bias, -2.0)
+
+        # Congela experts (zero-shot)
         for ex in self.experts.values():
             for p in ex.parameters():
                 p.requires_grad = False
-            ex.eval()  
+            ex.eval()
 
-        # PT: Move parâmetros/arquitetura para o dispositivo desejado
-        # EN: Move parameters/architecture to the desired device
+        # Vars para balance loss / debugging
+        self.last_probs = None
+        self.last_topk_idx = None
+
+        # Move para device por último
         self.to(device)
 
     def forward(self, x: torch.Tensor, context_length: int, horizon: int, top_k: int = 2, verbose: bool = False):
-        """
-        PT:
-        - x: tensor (batch_size, context_length) contendo o contexto por amostra.
-        - top_k: número de experts a selecionar por amostra.
-        Retorna: tensor (batch_size, horizon) com predições combinadas.
+        device = self.device
+        x_device = x.to(device)
 
-        EN:
-        - x: tensor (batch_size, context_length) with context per sample.
-        - top_k: number of experts to pick per sample.
-        Returns: (batch_size, horizon) combined predictions.
-        """
+        # logits base
+        logits = self.gating(x_device)  # (batch_size, E)
 
-        # PT: move o input para o device do modelo (pode já estar no mesmo device; .to faz nada nesse caso)
-        # EN: move the input to the model's device (it may already be on the same device; .to does nothing in that case)
-        x_device = x.to(self.device)
-
-        # computa logits (batch_size, E) e probs softmax (batch_size, E)
-        logits = self.gating(x_device)                # raw scores do roteador / router raw scores
-
-         # Add noise only during training
+        # === Noisy gating: adiciona ruído APENAS no treino ===
         if self.training:
             noise = self.noise_linear(x_device)
-            noise_std = F.softplus(noise)
-            noisy_logits = logits + (torch.randn_like(logits) * noise_std)
+            noise_std = F.softplus(noise) 
+            noisy_logits = logits + torch.randn_like(logits) * noise_std
         else:
             noisy_logits = logits
 
-        probs = F.softmax(noisy_logits, dim=-1)             # probabilidades por expert (por amostra) / probabilities per expert (per sample) 
+        # === Top-k sobre noisy_logits (esparsificação dos logits) ===
+        topk_vals, topk_idx = torch.topk(noisy_logits, k=top_k, dim=-1)  # valores e índices dos top-k logits
 
-        # PT: pega top-k probabilidades e seus índices por amostra -> shapes (batch_size, k)
-        # EN: get top-k probabilities and their indices per sample -> shapes (batch_size, k)
-        topk_vals, topk_idx = torch.topk(probs, k=top_k, dim=-1)
+        # cria logits esparsos: mantém apenas top-k (resto = -inf)
+        mask = torch.full_like(noisy_logits, float('-inf'))
+        sparse_logits = mask.scatter(-1, topk_idx, topk_vals)
+
+        probs = F.softmax(sparse_logits, dim=-1)  # (batch_size, E) - só top-k terão >0
+
+        # Salva para cálculo do balance loss / debug (sem grad)
+        self.last_probs = probs.detach()
+        self.last_topk_idx = topk_idx.detach()
 
         # >>>>>>> LOG <<<<<<<
-        # Show selected experts and their weights for each sample
         logging.info("\n=== Selected experts and weights per sample ===")
-
         for i in range(topk_idx.size(0)):
             chosen_experts = [self.expert_keys[idx.item()] for idx in topk_idx[i]]
-            chosen_weights = topk_vals[i].detach().cpu().numpy()
+            # usar as probabilidades normalizadas (probs), não os logits crus
+            chosen_weights = probs[i, topk_idx[i]].detach().cpu().numpy()
 
             logging.info(f"Sample {i}:")
             for exp, w in zip(chosen_experts, chosen_weights):
                 logging.info(f"   Expert: {exp} | Weight: {w:.4f}")
-
         logging.info("===============================================\n")
         # >>>>>>> END LOG <<<<<<<
 
-        batch_size = x_device.size(0)  # batch_size
+        batch_size = x_device.size(0)
+        final_preds = torch.zeros((batch_size, horizon), device=device)
 
-        # PT: tensor final que irá armazenar as predições combinadas (batch_size, horizon)
-        # EN: final tensor that will store the combined predictions (batch_size, horizon)
-        final_preds = torch.zeros((batch_size, horizon), device=self.device)
-
-        # PT: salvar as informações relevantes para possível cálculo de regularizador (balance loss). usamos detach() para não manter grafo e não aumentar uso de memória
-        # EN: save relevant information for possible regularizer calculation (balance loss). we use detach() to avoid maintaining the graph and not increase memory usage
-        # self.last_logits = logits.detach()
-        # self.last_topk_idx = topk_idx.detach()
-        # self.last_topk_vals = topk_vals.detach()
-
-        device = self.device
-
-        '''
-        PT: 
-            - preds_by_expert: acumulador de predições por expert:
-            - formato: (num_experts, batch_size, horizon)
-            - inicializa com zeros; vamos preencher apenas as linhas correspondentes às amostras que escolheram o expert
-        
-        EN:
-            - preds_by_expert: Accumulator of predictions by expert:
-            - format: (num_experts, batch_size, horizon)
-            - initializes with zeros; we will fill only the lines corresponding to the samples that chose the expert
-        '''
+        # acumula predições por expert: (num_experts, batch_size, horizon)
         preds_by_expert = torch.zeros((self.num_experts, batch_size, horizon), device=device)
 
-        # PT: Para cada expert, coletamos as amostras do batch que o incluíram no top-k; chamamos o expert **uma vez** com o sub-batch (vetorizado) — evita chamar expert N vezes.
-        # EN: For each expert, we collect the samples from the batch that included it in the top-k; we call the expert **once** with the (vectorized) sub-batch — avoid calling expert N times.
+        # chama cada expert apenas com o sub-batch relevante
         for expert_idx in range(self.num_experts):
-
-            # PT: mask: booleano shape (batch_size,) indicando quais amostras possuem esse expert entre seus top-k
-            # EN: mask: boolean shape (batch_size,) indicating which samples have this expert among their top-k
-            mask = (topk_idx == expert_idx).any(dim=1)
-            idxs = torch.nonzero(mask, as_tuple=False).squeeze(1)
-
+            mask_bool = (topk_idx == expert_idx).any(dim=1)   # (batch_size,)
+            idxs = torch.nonzero(mask_bool, as_tuple=False).squeeze(1)
             if idxs.numel() == 0:
                 continue
 
-            # PT: extrai o sub-batch que será passado ao expert
-            # EN: extracts the sub-batch that will be passed to the expert
-            xb_for_expert = x_device[idxs].clone()  
-
+            xb_for_expert = x_device[idxs].clone()
             expert_key = self.expert_keys[expert_idx]
             expert_module = self.experts[expert_key]
 
-            # PT: chamar expert em modo no_grad (zero-shot, sem computar gradientes)
-            # EN: call expert in no_grad mode (zero-shot, no gradients computed)
             with torch.no_grad():
                 expert_name = expert_module.__class__.__name__
-
                 if expert_name in ["TimeMoEExpert"]:
-                    # -------------------------
-                    # Min-Max Normalization
-                    # -------------------------
                     data_min = xb_for_expert.min(dim=1, keepdim=True).values
                     data_max = xb_for_expert.max(dim=1, keepdim=True).values
                     data_range = (data_max - data_min) + 1e-8
-
                     xb_norm = (xb_for_expert - data_min) / data_range
                     out_norm = expert_module(xb_norm, context_length=context_length, prediction_length=horizon)
-
                     out = out_norm * data_range + data_min
-
                 else:
-                    # -------------------------
-                    # Standard Scaler Normalization
-                    # -------------------------
                     mean = xb_for_expert.mean(dim=1, keepdim=True)
                     std = xb_for_expert.std(dim=1, keepdim=True)
                     xb_norm = (xb_for_expert - mean) / (std + 1e-8)
-
                     out_norm = expert_module(xb_norm, context_length=context_length, prediction_length=horizon)
                     out = out_norm * (std + 1e-8) + mean
 
             out = out.to(device).float().detach()
             preds_by_expert[expert_idx, idxs, :] = out
 
-        # PT: Agora combinamos as predições *apenas* entre os top-k escolhidos para cada amostra. A implementação abaixo faz isso amostra a amostra (pode ser vetorizada para performance).
-        # EN: Now we combine predictions *only* from the top-k chosen for each sample. The implementation below does this sample by sample (can be vectorized for performance).
+        # combina predições usando as probabilidades normalizadas (probs)
         for i in range(batch_size):
-            vals = topk_vals[i]   # (k,)
-            idxs = topk_idx[i]    # (k,) indices dos experts escolhidos para a amostra i / (k,) indices of the experts chosen for sample i
-
-            # PT: renormaliza pesos entre os top-k (evita soma 0)
-            # EN: renormalizes weights among top-k (avoids sum to 0)
-            s = vals.sum()
-            if s <= 0:
-                weights = vals.new_full(vals.shape, 1.0 / vals.shape[0])
-            else:
-                weights = vals / (s + 1e-8)
-
-            # PT: extrai as predições correspondentes a esses experts para a amostra i: preds_by_expert[idxs, i, :] -> (k, horizon)
-            # EN: extracts the predictions corresponding to these experts for sample i: preds_by_expert[idxs, i, :] -> (k, horizon)
-            chosen_preds = preds_by_expert[idxs, i, :]
-
-            # PT: aplica os pesos e soma para obter predição final (horizon,)
-            # EN: apply the weights and sum to obtain the final prediction (horizon,)
+            idxs = topk_idx[i]                     # (k,)
+            weights = probs[i, idxs]               # (k,) já normalizado
+            chosen_preds = preds_by_expert[idxs, i, :]   # (k, horizon)
             combined = (weights.unsqueeze(-1) * chosen_preds).sum(dim=0)
             final_preds[i] = combined
 
@@ -415,7 +340,7 @@ def load_jsonl(path):
 # Train and Save Model
 # ------------------
 def train_and_save(data_path, context_length, horizon, save_path, device="cpu",
-                   batch_size=32, epochs=30, lr=1e-3, balance_coef=1e-2, seed=0, detect_anomaly=False):
+                   batch_size=32, epochs=30, lr=1e-3, seed=0, detect_anomaly=False):
     # =============================================================================
     # PT: Treina apenas o roteador (gating) do modelo MoERouter usando uma base de 
     #     séries temporais e salva o modelo treinado. Os experts permanecem 
@@ -431,7 +356,6 @@ def train_and_save(data_path, context_length, horizon, save_path, device="cpu",
     #     - `batch_size`: tamanho do lote para treino
     #     - `epochs`: número de épocas de treinamento
     #     - `lr`: taxa de aprendizado do otimizador
-    #     - `balance_coef`: coeficiente de regularização para balanceamento do roteador
     #     - `seed`: semente aleatória para reprodutibilidade
     #     - `detect_anomaly`: ativa debug de gradientes (mais lento, útil para depuração)
     #
@@ -451,7 +375,6 @@ def train_and_save(data_path, context_length, horizon, save_path, device="cpu",
     #     - `batch_size`: training batch size
     #     - `epochs`: number of training epochs
     #     - `lr`: learning rate for the optimizer
-    #     - `balance_coef`: regularization coefficient for router load balancing
     #     - `seed`: random seed for reproducibility
     #     - `detect_anomaly`: enables gradient anomaly detection (slower, debug only)
     #
@@ -481,7 +404,11 @@ def train_and_save(data_path, context_length, horizon, save_path, device="cpu",
     model = MoERouter(context_length=context_length, device=device)
     model.to(device)
 
-    opt = torch.optim.Adam(model.gating.parameters(), lr=lr)
+    opt = torch.optim.Adam(
+        list(model.gating.parameters()) + list(model.noise_linear.parameters()),
+        lr=lr
+    )
+
     loss_fn = nn.HuberLoss(delta=2.0, reduction='mean')
 
     early_stopping = EarlyStopping(patience=3, delta=0.01)
@@ -500,11 +427,23 @@ def train_and_save(data_path, context_length, horizon, save_path, device="cpu",
 
             loss = loss_fn(preds, target)
 
+            alpha = 0.01  # ajuste: 0.001 .. 0.05
+            mean_probs = model.last_probs.mean(dim=0)       # (E,)
+            # fraction: fração de roteamentos por expert no batch (contagem top-k)
+            counts = torch.zeros(model.num_experts, device=device)
+            # model.last_topk_idx shape (batch_size, k)
+            for idx in model.last_topk_idx.view(-1):
+                counts[idx] += 1
+            mean_fraction = counts / counts.sum()           # (E,)
+
+            balance_loss = model.num_experts * torch.sum(mean_probs * mean_fraction)
+            total_loss = loss + alpha * balance_loss
+
             opt.zero_grad()
-            loss.backward()
+            total_loss.backward()
             opt.step()
 
-            train_loss += loss.item() * data.size(0)
+            train_loss += total_loss.item() * data.size(0)
         
         train_loss /= len(train_loader.dataset)
 
