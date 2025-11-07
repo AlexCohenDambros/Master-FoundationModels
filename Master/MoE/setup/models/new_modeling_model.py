@@ -94,7 +94,6 @@ class TimeSeriesDataset(Dataset):
     # -------------------------------------------------------------------------
     # PT: Retorna o número de amostras disponíveis no dataset.
     #     Exemplo: len(dataset) -> 100
-    #
     # EN: Returns the number of samples available in the dataset.
     #     Example: len(dataset) -> 100
     # -------------------------------------------------------------------------
@@ -104,7 +103,6 @@ class TimeSeriesDataset(Dataset):
     # -------------------------------------------------------------------------
     # PT: Retorna a amostra (entrada, alvo) na posição idx em formato tensor.
     #     Exemplo: dataset[0] -> (tensor([1,2,3,4,5]), tensor([6,7]))
-    #
     # EN: Returns the (input, target) sample at position idx as tensors.
     #     Example: dataset[0] -> (tensor([1,2,3,4,5]), tensor([6,7]))
     # -------------------------------------------------------------------------
@@ -154,10 +152,22 @@ class MoERouter(nn.Module):
         # EN: Gating: maps context vector (size context_length) to logits over experts
         self.gating = nn.Linear(context_length, self.num_experts)
 
+
+        # PT: Camada opcional de ruído (noise_linear) — usada em algumas variantes do roteador
+        #     para adicionar ruído nos logits do gating, promovendo exploração dos especialistas
+        #     e evitando que apenas um expert seja sempre selecionado.
+        #     O ruído normalmente é amostrado de uma distribuição Gaussiana e somado aos logits,
+        #     seguindo a formulação do "Noisy Top-K Gating" do Switch Transformer (Google, 2021).
+        # EN: Optional noise layer — used in some router variants to inject noise into gating logits,
+        #     encouraging exploration of different experts and preventing collapse to a single expert.
+        #     The noise is typically sampled from a Gaussian distribution and added to the logits,
+        #     as in the "Noisy Top-K Gating" from the Switch Transformer (Google, 2021).
+        self.noise_linear = nn.Linear(context_length, self.num_experts)
+
         # PT: Inicializar pesos e bias de forma neutra (todos os experts com a mesma probabilidade inicial)
         # EN: Initialize weights and bias neutrally (all experts equally likely initially)
-        nn.init.constant_(self.gating.weight, 0.0)
-        nn.init.constant_(self.gating.bias, 0.0)
+        nn.init.constant_(self.gating.weight, 1/self.num_experts)
+        nn.init.constant_(self.gating.bias, 1/self.num_experts)
 
         # PT: Congelar os experts: desativa grad e coloca em eval(). Isso evita alocação de grad acidental dos experts e garante comportamento determinístico.
         # EN: Freeze experts: disables grad and places it in eval(). This prevents accidental grad allocation from experts and ensures deterministic behavior.
@@ -169,12 +179,6 @@ class MoERouter(nn.Module):
         # PT: Move parâmetros/arquitetura para o dispositivo desejado
         # EN: Move parameters/architecture to the desired device
         self.to(device)
-
-        # PT: Variáveis usadas para cálculo do balance-loss (monitor / regularização)
-        # EN: Variables used to calculate balance-loss (monitor/regularization)
-        # self.last_logits = None
-        # self.last_topk_idx = None
-        # self.last_topk_vals = None
 
     def forward(self, x: torch.Tensor, context_length: int, horizon: int, top_k: int = 2, verbose: bool = False):
         """
@@ -195,10 +199,16 @@ class MoERouter(nn.Module):
 
         # computa logits (batch_size, E) e probs softmax (batch_size, E)
         logits = self.gating(x_device)                # raw scores do roteador / router raw scores
-        probs = F.softmax(logits, dim=-1)             # probabilidades por expert (por amostra) / probabilities per expert (per sample) 
 
-        # PT: pega top-k probabilidades e seus índices por amostra -> shapes (batch_size, k)
-        # EN: get top-k probabilities and their indices per sample -> shapes (batch_size, k)
+        # Add noise only during training
+        if self.training:
+            noise = self.noise_linear(x_device)
+            noise_std = F.softplus(noise)
+            noisy_logits = logits + (torch.randn_like(logits) * noise_std)
+        else:
+            noisy_logits = logits
+        
+        probs = F.softmax(noisy_logits, dim=-1)  
         topk_vals, topk_idx = torch.topk(probs, k=top_k, dim=-1)
 
         # >>>>>>> LOG <<<<<<<
@@ -222,12 +232,6 @@ class MoERouter(nn.Module):
         # EN: final tensor that will store the combined predictions (batch_size, horizon)
         final_preds = torch.zeros((batch_size, horizon), device=self.device)
 
-        # PT: salvar as informações relevantes para possível cálculo de regularizador (balance loss). usamos detach() para não manter grafo e não aumentar uso de memória
-        # EN: save relevant information for possible regularizer calculation (balance loss). we use detach() to avoid maintaining the graph and not increase memory usage
-        # self.last_logits = logits.detach()
-        # self.last_topk_idx = topk_idx.detach()
-        # self.last_topk_vals = topk_vals.detach()
-
         device = self.device
 
         '''
@@ -246,76 +250,27 @@ class MoERouter(nn.Module):
         # PT: Para cada expert, coletamos as amostras do batch que o incluíram no top-k; chamamos o expert **uma vez** com o sub-batch (vetorizado) — evita chamar expert N vezes.
         # EN: For each expert, we collect the samples from the batch that included it in the top-k; we call the expert **once** with the (vectorized) sub-batch — avoid calling expert N times.
         for expert_idx in range(self.num_experts):
-
-            # PT: mask: booleano shape (batch_size,) indicando quais amostras possuem esse expert entre seus top-k
-            # EN: mask: boolean shape (batch_size,) indicating which samples have this expert among their top-k
             mask = (topk_idx == expert_idx).any(dim=1)
             idxs = torch.nonzero(mask, as_tuple=False).squeeze(1)
-
             if idxs.numel() == 0:
                 continue
 
-            # PT: extrai o sub-batch que será passado ao expert
-            # EN: extracts the sub-batch that will be passed to the expert
-            xb_for_expert = x_device[idxs].clone()  
-
+            xb_for_expert = x_device[idxs].clone()
             expert_key = self.expert_keys[expert_idx]
             expert_module = self.experts[expert_key]
 
-            # PT: chamar expert em modo no_grad (zero-shot, sem computar gradientes)
-            # EN: call expert in no_grad mode (zero-shot, no gradients computed)
             with torch.no_grad():
-                expert_name = expert_module.__class__.__name__
-
-                if expert_name in ["TimeMoE50MExpert","TimeMoE200MExpert"]:
-                    print(expert_name)
-                    # -------------------------
-                    # Min-Max Normalization
-                    # -------------------------
-                    data_min = xb_for_expert.min(dim=1, keepdim=True).values
-                    data_max = xb_for_expert.max(dim=1, keepdim=True).values
-                    data_range = (data_max - data_min) + 1e-8
-                    xb_norm = (xb_for_expert - data_min) / data_range
-
-                    out_norm = expert_module(xb_norm, context_length=context_length, prediction_length=horizon)
-
-                    out = out_norm * data_range + data_min
-
-                else:
-                    # -------------------------
-                    # Standard Scaler Normalization
-                    # -------------------------
-                    mean = xb_for_expert.mean(dim=1, keepdim=True)
-                    std = xb_for_expert.std(dim=1, keepdim=True)
-                    xb_norm = (xb_for_expert - mean) / (std + 1e-8)
-
-                    out_norm = expert_module(xb_norm, context_length=context_length, prediction_length=horizon)
-
-                    out = out_norm * (std + 1e-8) + mean
+                out = expert_module(xb_for_expert, context_length=context_length, prediction_length=horizon)
 
             out = out.to(device).float().detach()
             preds_by_expert[expert_idx, idxs, :] = out
 
-        # PT: Agora combinamos as predições *apenas* entre os top-k escolhidos para cada amostra. A implementação abaixo faz isso amostra a amostra (pode ser vetorizada para performance).
-        # EN: Now we combine predictions *only* from the top-k chosen for each sample. The implementation below does this sample by sample (can be vectorized for performance).
+        # PT: Agora combinamos as predições *apenas* entre os top-k escolhidos para cada amostra. 
+        # EN: Now we combine predictions *only* from the top-k chosen for each sample. 
         for i in range(batch_size):
-            vals = topk_vals[i]   # (k,)
-            idxs = topk_idx[i]    # (k,) indices dos experts escolhidos para a amostra i / (k,) indices of the experts chosen for sample i
-
-            # PT: renormaliza pesos entre os top-k (evita soma 0)
-            # EN: renormalizes weights among top-k (avoids sum to 0)
-            s = vals.sum()
-            if s <= 0:
-                weights = vals.new_full(vals.shape, 1.0 / vals.shape[0])
-            else:
-                weights = vals / (s + 1e-8)
-
-            # PT: extrai as predições correspondentes a esses experts para a amostra i: preds_by_expert[idxs, i, :] -> (k, horizon)
-            # EN: extracts the predictions corresponding to these experts for sample i: preds_by_expert[idxs, i, :] -> (k, horizon)
+            idxs = topk_idx[i]
+            weights = probs[i, idxs]              
             chosen_preds = preds_by_expert[idxs, i, :]
-
-            # PT: aplica os pesos e soma para obter predição final (horizon,)
-            # EN: apply the weights and sum to obtain the final prediction (horizon,)
             combined = (weights.unsqueeze(-1) * chosen_preds).sum(dim=0)
             final_preds[i] = combined
 
@@ -360,7 +315,7 @@ class MoERouter(nn.Module):
         EN: Rebuilds the MoERouter from the checkpoint. Requires EXPERT_CLASS_MAP to be available
             and the same key order to be used.
         """
-        ckpt = torch.load(path, map_location=device)
+        ckpt = torch.load(path, map_location=device, weights_only=True)
         model = MoERouter(context_length=context_length, device=device)
         model.gating.load_state_dict(ckpt["gating_state"])
         model.to(device)
@@ -433,8 +388,11 @@ def load_jsonl(path):
 # -------------------
 # Train and Save Model
 # ------------------
+# -------------------
+# Train and Save Model
+# ------------------
 def train_and_save(data_path, context_length, horizon, save_path, device="cpu",
-                   batch_size=32, epochs=20, lr=1e-3, balance_coef=1e-2, seed=0, detect_anomaly=False):
+                   batch_size=32, epochs=30, lr=1e-3, seed=0, detect_anomaly=False):
     # =============================================================================
     # PT: Treina apenas o roteador (gating) do modelo MoERouter usando uma base de 
     #     séries temporais e salva o modelo treinado. Os experts permanecem 
@@ -450,7 +408,6 @@ def train_and_save(data_path, context_length, horizon, save_path, device="cpu",
     #     - `batch_size`: tamanho do lote para treino
     #     - `epochs`: número de épocas de treinamento
     #     - `lr`: taxa de aprendizado do otimizador
-    #     - `balance_coef`: coeficiente de regularização para balanceamento do roteador
     #     - `seed`: semente aleatória para reprodutibilidade
     #     - `detect_anomaly`: ativa debug de gradientes (mais lento, útil para depuração)
     #
@@ -470,7 +427,6 @@ def train_and_save(data_path, context_length, horizon, save_path, device="cpu",
     #     - `batch_size`: training batch size
     #     - `epochs`: number of training epochs
     #     - `lr`: learning rate for the optimizer
-    #     - `balance_coef`: regularization coefficient for router load balancing
     #     - `seed`: random seed for reproducibility
     #     - `detect_anomaly`: enables gradient anomaly detection (slower, debug only)
     #
@@ -515,7 +471,15 @@ def train_and_save(data_path, context_length, horizon, save_path, device="cpu",
             data = data.to(device)
             target = target.to(device)
 
-            preds = model(data, context_length=context_length, horizon=horizon)
+            # -------------------------
+            # Standard Scaler
+            # -------------------------
+            mean = data.mean(dim=1, keepdim=True)     
+            std = data.std(dim=1, keepdim=True)       
+            data_norm = (data - mean) / (std + 1e-8)  
+            preds_norm = model(data_norm, context_length=context_length, horizon=horizon)
+            
+            preds = preds_norm * (std + 1e-8) + mean
 
             loss = loss_fn(preds, target)
 
