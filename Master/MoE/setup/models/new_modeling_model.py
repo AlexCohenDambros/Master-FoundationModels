@@ -34,7 +34,7 @@ EXPERT_CLASS_MAP = {
     "Moirai-Small": MoiraiSmallExpert,
     "Moirai-Base": MoiraiBaseExpert,
     "Moirai-Large": MoiraiLargeExpert,
-    # "Moirai-MoE": MoiraiMoEExpert,
+    "Moirai-MoE": MoiraiMoEExpert,
     "Time-MoE50M": TimeMoE50MExpert,
     "Time-MoE200M": TimeMoE200MExpert,
     "TimesFM": TimesFMExpert,
