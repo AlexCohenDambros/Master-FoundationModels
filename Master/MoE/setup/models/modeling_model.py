@@ -542,7 +542,3 @@ def predict_from_model(model_path, series, context_length, horizon, device="cpu"
 
     else:
         raise ValueError(f"`series` must be 1D or 2D, but got shape {tuple(series.shape)}")
-
-# Note: !!!!!!Importante!!!!!!
-# Ponto crítico, se o modelo for treinado com um context_lenght de 168 por exemplo, quando carregar e fazer uma previsao, o context_lenght deve ser igual o do treino.
-# Todo: ponto de pequisa futura, verificar como deixar o context_lenght dinamico ou tentar implementar em intervalos.

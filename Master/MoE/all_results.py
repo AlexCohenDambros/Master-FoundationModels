@@ -10,25 +10,37 @@ from uni2ts.model.moirai import MoiraiForecast, MoiraiModule
 from setup.models.modeling_model import predict_from_model
 from sklearn.metrics import mean_absolute_percentage_error
 
-file_path = "../dataset_global/dataset_global.jsonl"
-prediction_length = 12
-results_path = "results_by_state_year"
-os.makedirs(results_path, exist_ok=True)
-times_path = "times_by_state_year"
-os.makedirs(times_path, exist_ok=True)
+# ===============================
+# CONFIG
+# ===============================
 
-context_by_year = {
-    2024: 398,
-    2023: 386,
-    2022: 374,
-    2021: 362,
-    2020: 350
-}
+file_path = "../dataset_global/dataset_global.jsonl"
+
+HORIZONS = [3, 6, 12, 24]
+YEARS = [2024, 2023, 2022, 2021, 2020]
+
+BASE_CONTEXT = 410
+
+results_root = "results_by_state_year"
+times_root = "times_by_state_year"
+
+os.makedirs(results_root, exist_ok=True)
+os.makedirs(times_root, exist_ok=True)
 
 base_path = "../all_datasets_global_by_years"
 
+# ===============================
+# CONTEXT FUNCTION (DYNAMIC)
+# ===============================
 
-def process_dataset(state_code, year, context_length):
+def get_context_length(year, horizon):
+    return BASE_CONTEXT - horizon - ((2024 - year) * horizon)
+
+# ===============================
+# MAIN PROCESS FUNCTION
+# ===============================
+
+def process_dataset(state_code, year, context_length, prediction_length):
     train_list, test_list, product_names = [], [], []
 
     with open(file_path, "r") as f:
@@ -45,7 +57,7 @@ def process_dataset(state_code, year, context_length):
                         product_names.append(product_name)
 
     if len(train_list) == 0:
-        print(f"No valid sequences found for state={state_code}, year={year}")
+        print(f"No valid sequences for state={state_code}, year={year}")
         return None, None
 
     tensor_train = torch.tensor(train_list, dtype=torch.float32)
@@ -58,37 +70,39 @@ def process_dataset(state_code, year, context_length):
 
     times_dict = {}
 
+    # -------- Time-MoE 50--------
     start = time.time()
     model = AutoModelForCausalLM.from_pretrained(
-        "Maple728/TimeMoE-200M",
-        trust_remote_code=True,
+        "Maple728/TimeMoE-50M", trust_remote_code=True
     )
-    input_timemoe = tensor_train_scaled.clone().detach()
-    output = model.generate(input_timemoe, max_new_tokens=prediction_length)
-    output_time_moe_scaled = output[:, -prediction_length:]
-    output_time_moe = output_time_moe_scaled * std_vals + mean_vals
-    times_dict["Time-MoE"] = round(time.time() - start, 4)
+    out = model.generate(tensor_train_scaled, max_new_tokens=prediction_length)
+    out = out[:, -prediction_length:]
+    output_time_moe_50 = out * std_vals + mean_vals
+    times_dict["Time-MoE50M"] = round(time.time() - start, 4)
 
+    # -------- Time-MoE 200--------
     start = time.time()
     model = AutoModelForCausalLM.from_pretrained(
-        "thuml/sundial-base-128m",
-        trust_remote_code=True,
+        "Maple728/TimeMoE-200M", trust_remote_code=True
     )
-    outputs = []
-    input_timer = tensor_train_scaled.clone().detach()
-    for i in range(input_timer.size(0)):
-        past_target = input_timer[i].unsqueeze(0)
-        forecast = model.generate(
-            past_target,
-            max_new_tokens=prediction_length,
-            num_samples=20
-        )
-        out_row = torch.as_tensor(forecast.mean(dim=1), dtype=torch.float32).reshape(1, -1)
-        outputs.append(out_row)
-    output_timer_scaled = torch.cat(outputs, dim=0)
-    output_timer = output_timer_scaled * std_vals + mean_vals
+    out = model.generate(tensor_train_scaled, max_new_tokens=prediction_length)
+    out = out[:, -prediction_length:]
+    output_time_moe_200 = out * std_vals + mean_vals
+    times_dict["Time-MoE200M"] = round(time.time() - start, 4)
+
+    # -------- Timer --------
+    start = time.time()
+    model = AutoModelForCausalLM.from_pretrained(
+        "thuml/sundial-base-128m", trust_remote_code=True
+    )
+    outs = []
+    for i in range(tensor_train_scaled.size(0)):
+        fc = model.generate(tensor_train_scaled[i].unsqueeze(0), max_new_tokens=prediction_length, num_samples=20)
+        outs.append(torch.as_tensor(fc.mean(dim=1)).reshape(1, -1))
+    output_timer = torch.cat(outs) * std_vals + mean_vals
     times_dict["Timer"] = round(time.time() - start, 4)
 
+    # -------- TimesFM --------
     start = time.time()
     model = timesfm.TimesFm(
         hparams=timesfm.TimesFmHparams(
@@ -103,28 +117,12 @@ def process_dataset(state_code, year, context_length):
             huggingface_repo_id="google/timesfm-2.0-500m-pytorch"
         ),
     )
-    input_timesfm = tensor_train_scaled.clone().detach().cpu().numpy()
     with torch.no_grad():
-        out, _ = model.forecast(input_timesfm)
-    output_timesfm_scaled = torch.from_numpy(out).float()
-    output_timesfm = output_timesfm_scaled * std_vals + mean_vals
+        out, _ = model.forecast(tensor_train_scaled.cpu().numpy())
+    output_timesfm = torch.from_numpy(out).float() * std_vals + mean_vals
     times_dict["TimesFM"] = round(time.time() - start, 4)
 
-    start = time.time()
-    model = BaseChronosPipeline.from_pretrained(
-        "amazon/chronos-bolt-small",
-        device_map="cpu",
-        torch_dtype=torch.bfloat16,
-    )
-    input_chronos = tensor_train_scaled.clone().detach()
-    with torch.no_grad():
-        _, output_chronos_scaled = model.predict_quantiles(
-            context=input_chronos,
-            prediction_length=prediction_length,
-        )
-    output_chronos = output_chronos_scaled * std_vals + mean_vals
-    times_dict["Chronos"] = round(time.time() - start, 4)
-
+    # -------- Moirai Small --------
     start = time.time()
     model = MoiraiForecast(
         module=MoiraiModule.from_pretrained("Salesforce/moirai-1.1-R-small"),
@@ -136,96 +134,274 @@ def process_dataset(state_code, year, context_length):
         feat_dynamic_real_dim=0,
         past_feat_dynamic_real_dim=0,
     )
-    outputs = []
-    input_moirai = tensor_train_scaled.clone().detach()
-    for i in range(input_moirai.size(0)):
-        past_target = input_moirai[i].unsqueeze(0).unsqueeze(-1)
-        past_observed_target = torch.ones_like(past_target, dtype=torch.bool)
-        past_is_pad = torch.zeros_like(past_target, dtype=torch.bool).squeeze(-1)
-        forecast = model(
-            past_target=past_target,
-            past_observed_target=past_observed_target,
-            past_is_pad=past_is_pad,
-        )
-        out_row = torch.as_tensor(forecast.mean(dim=1), dtype=torch.float32).reshape(1, -1)
-        outputs.append(out_row)
-    output_moirai_scaled = torch.cat(outputs, dim=0)
-    output_moirai = output_moirai_scaled * std_vals + mean_vals
-    times_dict["Moirai"] = round(time.time() - start, 4)
+    outs = []
+    for i in range(tensor_train_scaled.size(0)):
+        past = tensor_train_scaled[i].unsqueeze(0).unsqueeze(-1)
+        obs = torch.ones_like(past, dtype=torch.bool)
+        pad = torch.zeros_like(past, dtype=torch.bool).squeeze(-1)
+        fc = model(past_target=past, past_observed_target=obs, past_is_pad=pad)
+        outs.append(torch.as_tensor(fc.mean(dim=1)).reshape(1, -1))
+    output_moirai_small = torch.cat(outs) * std_vals + mean_vals
+    times_dict["Moirai-Small"] = round(time.time() - start, 4)
 
+    # -------- Moirai Small --------
     start = time.time()
-    model_path = f"trained_models/excluding_{state_code}/model_excluding_{state_code}_{year}.pt"
+    model = MoiraiForecast(
+        module=MoiraiModule.from_pretrained("Salesforce/moirai-1.1-R-base"),
+        prediction_length=prediction_length,
+        context_length=context_length,
+        patch_size=16,
+        num_samples=100,
+        target_dim=1,
+        feat_dynamic_real_dim=0,
+        past_feat_dynamic_real_dim=0,
+    )
+    outs = []
+    for i in range(tensor_train_scaled.size(0)):
+        past = tensor_train_scaled[i].unsqueeze(0).unsqueeze(-1)
+        obs = torch.ones_like(past, dtype=torch.bool)
+        pad = torch.zeros_like(past, dtype=torch.bool).squeeze(-1)
+        fc = model(past_target=past, past_observed_target=obs, past_is_pad=pad)
+        outs.append(torch.as_tensor(fc.mean(dim=1)).reshape(1, -1))
+    output_moirai_base = torch.cat(outs) * std_vals + mean_vals
+    times_dict["Moirai-Base"] = round(time.time() - start, 4)
+
+    # -------- Moirai Small --------
+    start = time.time()
+    model = MoiraiForecast(
+        module=MoiraiModule.from_pretrained("Salesforce/moirai-1.1-R-large"),
+        prediction_length=prediction_length,
+        context_length=context_length,
+        patch_size=16,
+        num_samples=100,
+        target_dim=1,
+        feat_dynamic_real_dim=0,
+        past_feat_dynamic_real_dim=0,
+    )
+    outs = []
+    for i in range(tensor_train_scaled.size(0)):
+        past = tensor_train_scaled[i].unsqueeze(0).unsqueeze(-1)
+        obs = torch.ones_like(past, dtype=torch.bool)
+        pad = torch.zeros_like(past, dtype=torch.bool).squeeze(-1)
+        fc = model(past_target=past, past_observed_target=obs, past_is_pad=pad)
+        outs.append(torch.as_tensor(fc.mean(dim=1)).reshape(1, -1))
+    output_moirai_large = torch.cat(outs) * std_vals + mean_vals
+    times_dict["Moirai-Large"] = round(time.time() - start, 4)
+
+    # -------- Chronos-t5-Tiny --------
+    start = time.time()
+    model = BaseChronosPipeline.from_pretrained(
+       "amazon/chronos-t5-tiny", device_map="cpu", torch_dtype=torch.bfloat16
+    )
+    _, out = model.predict_quantiles(
+        context=tensor_train_scaled, prediction_length=prediction_length
+    )
+    output_chronos_t5_tiny = out * std_vals + mean_vals
+    times_dict["Chronos-t5-Tiny"] = round(time.time() - start, 4)
+
+    # -------- Chronos-t5-Mini --------
+    start = time.time()
+    model = BaseChronosPipeline.from_pretrained(
+       "amazon/chronos-t5-mini", device_map="cpu", torch_dtype=torch.bfloat16
+    )
+    _, out = model.predict_quantiles(
+        context=tensor_train_scaled, prediction_length=prediction_length
+    )
+    output_chronos_t5_mini = out * std_vals + mean_vals
+    times_dict["Chronos-t5-Mini"] = round(time.time() - start, 4)
+
+    # -------- Chronos-t5-Small --------
+    start = time.time()
+    model = BaseChronosPipeline.from_pretrained(
+       "amazon/chronos-t5-small", device_map="cpu", torch_dtype=torch.bfloat16
+    )
+    _, out = model.predict_quantiles(
+        context=tensor_train_scaled, prediction_length=prediction_length
+    )
+    output_chronos_t5_small = out * std_vals + mean_vals
+    times_dict["Chronos-t5-Small"] = round(time.time() - start, 4)
+
+    # -------- Chronos-t5-Base --------
+    start = time.time()
+    model = BaseChronosPipeline.from_pretrained(
+       "amazon/chronos-t5-base", device_map="cpu", torch_dtype=torch.bfloat16
+    )
+    _, out = model.predict_quantiles(
+        context=tensor_train_scaled, prediction_length=prediction_length
+    )
+    output_chronos_t5_base = out * std_vals + mean_vals
+    times_dict["Chronos-t5-Base"] = round(time.time() - start, 4)
+
+    # -------- Chronos-t5-Large --------
+    start = time.time()
+    model = BaseChronosPipeline.from_pretrained(
+       "amazon/chronos-t5-large", device_map="cpu", torch_dtype=torch.bfloat16
+    )
+    _, out = model.predict_quantiles(
+        context=tensor_train_scaled, prediction_length=prediction_length
+    )
+    output_chronos_t5_large = out * std_vals + mean_vals
+    times_dict["Chronos-t5-Large"] = round(time.time() - start, 4)
+
+    # -------- Chronos-Bolt-Tiny --------
+    start = time.time()
+    model = BaseChronosPipeline.from_pretrained(
+       "amazon/chronos-bolt-tiny", device_map="cpu", torch_dtype=torch.bfloat16
+    )
+    _, out = model.predict_quantiles(
+        context=tensor_train_scaled, prediction_length=prediction_length
+    )
+    output_chronos_bolt_tiny = out * std_vals + mean_vals
+    times_dict["Chronos-Bolt-Tiny"] = round(time.time() - start, 4)
+
+    # -------- Chronos-Bolt-Mini --------
+    start = time.time()
+    model = BaseChronosPipeline.from_pretrained(
+       "amazon/chronos-bolt-mini", device_map="cpu", torch_dtype=torch.bfloat16
+    )
+    _, out = model.predict_quantiles(
+        context=tensor_train_scaled, prediction_length=prediction_length
+    )
+    output_chronos_bolt_mini = out * std_vals + mean_vals
+    times_dict["Chronos-Bolt-Mini"] = round(time.time() - start, 4)
+
+    # -------- Chronos-Bolt-Small --------
+    start = time.time()
+    model = BaseChronosPipeline.from_pretrained(
+       "amazon/chronos-bolt-small", device_map="cpu", torch_dtype=torch.bfloat16
+    )
+    _, out = model.predict_quantiles(
+        context=tensor_train_scaled, prediction_length=prediction_length
+    )
+    output_chronos_bolt_small = out * std_vals + mean_vals
+    times_dict["Chronos-Bolt-Small"] = round(time.time() - start, 4)
+
+    # -------- Chronos-Bolt-Base --------
+    start = time.time()
+    model = BaseChronosPipeline.from_pretrained(
+       "amazon/chronos-bolt-base", device_map="cpu", torch_dtype=torch.bfloat16
+    )
+    _, out = model.predict_quantiles(
+        context=tensor_train_scaled, prediction_length=prediction_length
+    )
+    output_chronos_bolt_base = out * std_vals + mean_vals
+    times_dict["Chronos-Bolt-Base"] = round(time.time() - start, 4)
+
+    # -------- My-MoE --------
+    start = time.time()
+    model_path = f"trained_models/horizon_{prediction_length}/excluding_{state_code}/model_excluding_{state_code}_{year}.pt"
     if not os.path.exists(model_path):
-        output_my = torch.zeros_like(output_timer)
+        output_mymoe = torch.zeros_like(output_timer)
     else:
-        input_my = tensor_train_scaled.clone().detach()
-        output_scaled = predict_from_model(
+        out = predict_from_model(
             model_path=model_path,
-            series=input_my,
+            series=tensor_train_scaled,
             horizon=prediction_length,
             context_length=context_length,
             device="cpu"
         )
-        output_my = output_scaled * std_vals + mean_vals
+        output_mymoe = out * std_vals + mean_vals
     times_dict["My-MoE"] = round(time.time() - start, 4)
 
     model_outputs = {
-        "Moirai": output_moirai,
-        "Chronos": output_chronos,
+        "Moirai-Small": output_moirai_small,
+        "Moirai-Base": output_moirai_base,
+        "Moirai-Large": output_moirai_large,
+        "Time-MoE50M": output_time_moe_50,
+        "Time-MoE200M": output_time_moe_200,
         "TimesFM": output_timesfm,
         "Timer": output_timer,
-        "Time-MoE": output_time_moe,
-        "My-MoE": output_my
+        "Chronos-t5-Tiny": output_chronos_t5_tiny,
+        "Chronos-t5-Mini": output_chronos_t5_mini,
+        "Chronos-t5-Small": output_chronos_t5_small,
+        "Chronos-t5-Base": output_chronos_t5_base,
+        "Chronos-t5-Large": output_chronos_t5_large,
+        "Chronos-Bolt-Tiny": output_chronos_bolt_tiny,
+        "Chronos-Bolt-Mini": output_chronos_bolt_mini,
+        "Chronos-Bolt-Small": output_chronos_bolt_small,
+        "Chronos-Bolt-Base": output_chronos_bolt_base,
+        "My-MoE": output_mymoe
     }
 
-    foundation_keys = ["Moirai", "Chronos", "TimesFM", "Timer", "Time-MoE"]
-    foundation_mean = torch.stack([model_outputs[k] for k in foundation_keys], dim=0).mean(dim=0)
-    model_outputs["Mean Foundation Models"] = foundation_mean
+    foundation_keys = ["Moirai-Small",
+        "Moirai-Base",
+        "Moirai-Large",
+        "Time-MoE50M",
+        "Time-MoE200M",
+        "TimesFM",
+        "Timer",
+        "Chronos-t5-Tiny",
+        "Chronos-t5-Mini",
+        "Chronos-t5-Small",
+        "Chronos-t5-Base",
+        "Chronos-t5-Large",
+        "Chronos-Bolt-Tiny",
+        "Chronos-Bolt-Mini",
+        "Chronos-Bolt-Small",
+        "Chronos-Bolt-Base"]
+    
+    model_outputs["Mean Foundation Models"] = torch.stack(
+        [model_outputs[k] for k in foundation_keys], dim=0
+    ).mean(dim=0)
 
     results = {}
-    for model_name, preds in model_outputs.items():
-        preds = preds.clone()
+    for name, preds in model_outputs.items():
         preds[preds < 0] = 0
-        preds_np = preds.numpy()
-        test_np = tensor_test.numpy()
-        mape_series = []
-        for i in range(preds_np.shape[0]):
-            mape_val = mean_absolute_percentage_error(test_np[i], preds_np[i]) * 100
-            mape_series.append(round(mape_val, 4))
-        results[model_name] = mape_series
+        mape_list = []
+        for i in range(preds.shape[0]):
+            mape = mean_absolute_percentage_error(
+                tensor_test[i].numpy(), preds[i].numpy()
+            ) * 100
+            mape_list.append(round(mape, 4))
+        results[name] = mape_list
 
     df_results = pd.DataFrame(results).T.reset_index()
     df_results.rename(columns={"index": "Modelo"}, inplace=True)
     df_results.columns = ["Modelo"] + [p.capitalize() for p in product_names]
 
     df_times = pd.DataFrame(list(times_dict.items()), columns=["Modelo", "Tempo (s)"])
+
     return df_results, df_times
 
+# ===============================
+# MAIN LOOP
+# ===============================
 
-all_results = {}
+for horizon in HORIZONS:
+    print(f"\n===== Horizon {horizon} =====")
 
-for state_folder in sorted(os.listdir(base_path)):
-    state_path = os.path.join(base_path, state_folder)
-    if not os.path.isdir(state_path):
-        continue
+    results_path = os.path.join(results_root, f"horizon_{horizon}")
+    times_path = os.path.join(times_root, f"horizon_{horizon}")
 
-    state_code = state_folder.replace("excluding_", "")
+    os.makedirs(results_path, exist_ok=True)
+    os.makedirs(times_path, exist_ok=True)
 
-    for year in context_by_year.keys():
-        context_length = context_by_year[year]
-
-        print(f"Processing {state_code.upper()} - {year} (context_length={context_length})")
-
-        df_results, df_times = process_dataset(state_code, year, context_length)
-        if df_results is None:
+    for state_folder in sorted(os.listdir(base_path)):
+        if not os.path.isdir(os.path.join(base_path, state_folder)):
             continue
 
-        all_results[(state_code, year)] = df_results
+        state_code = state_folder.replace("excluding_", "")
 
-        out_path = os.path.join(results_path, f"results_{state_code}_{year}.csv")
-        df_results.to_csv(out_path, index=False)
+        for year in YEARS:
+            context_length = get_context_length(year, horizon)
 
-        time_path = os.path.join(times_path, f"times_{state_code}_{year}.csv")
-        df_times.to_csv(time_path, index=False)
+            print(f"Processing {state_code.upper()} - {year} - Horizon {horizon} - Context {context_length}")
 
-print("Processing complete. All summaries and times saved.")
+            df_results, df_times = process_dataset(
+                state_code, year, context_length, horizon
+            )
+
+            if df_results is None:
+                continue
+
+            df_results.to_csv(
+                os.path.join(results_path, f"results_{state_code}_{year}.csv"),
+                index=False
+            )
+
+            df_times.to_csv(
+                os.path.join(times_path, f"times_{state_code}_{year}.csv"),
+                index=False
+            )
+
+print("\nAll processing completed.")

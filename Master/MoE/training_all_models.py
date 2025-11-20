@@ -14,21 +14,23 @@ os.environ["NCCL_IB_DISABLE"] = "1"
 # Base dataset path
 base_path = "../all_datasets_global_by_years"
 
-# Fixed forecast horizon
-HORIZON = 12
+# Horizons to train
+HORIZONS = [3, 6, 12, 24]
 
-# Context length per year
-context_by_year = {
-    2024: 398,
-    2023: 386,
-    2022: 374,
-    2021: 362,
-    2020: 350
-}
+# Base context starting point
+BASE_CONTEXT = 410
+MAX_YEAR = 2024
+MIN_YEAR = 2020
 
 # Root directory for trained models
 trained_models_root = "trained_models"
 os.makedirs(trained_models_root, exist_ok=True)
+
+# ======================================
+# HELPER: Dynamic context length
+# ======================================
+def get_context_length(year: int, horizon: int) -> int:
+    return BASE_CONTEXT - horizon - ((MAX_YEAR - year) * horizon)
 
 # ======================================
 # MAIN LOOP
@@ -38,56 +40,80 @@ for excluded_state_folder in os.listdir(base_path):
     if not os.path.isdir(folder_path):
         continue
 
-    state_model_dir = os.path.join(trained_models_root, excluded_state_folder)
+    # Loop through horizons
+    for HORIZON in HORIZONS:
 
-    # Skip if this state's folder already exists
-    if os.path.exists(state_model_dir):
-        print(f"Folder '{state_model_dir}' already exists. Skipping.")
-        continue
-
-    os.makedirs(state_model_dir, exist_ok=False)
-
-    # Loop through yearly datasets
-    for dataset_file in os.listdir(folder_path):
-        if not dataset_file.endswith(".jsonl"):
-            continue
-
-        dataset_path = os.path.join(folder_path, dataset_file)
-        match = re.search(r"dataset_(\d{4})\.jsonl", dataset_file)
-        if not match:
-            print(f"Could not extract year from file: {dataset_file}")
-            continue
-
-        year = int(match.group(1))
-        if year not in context_by_year:
-            print(f"Year {year} not in context mapping. Skipping {dataset_file}.")
-            continue
-
-        context_length = context_by_year[year]
-        save_model_path = os.path.join(
-            state_model_dir, f"model_{excluded_state_folder}_{year}.pt"
+        # Format: trained_models/horizon_X/excluding_STATE/
+        horizon_dir = os.path.join(trained_models_root, f"horizon_{HORIZON}")
+        state_model_dir = os.path.join(
+            horizon_dir, f"excluding_{excluded_state_folder}"
         )
 
-        # Run training
-        command = [
-            "python", "main.py",
-            "--mode", "train",
-            "--data", dataset_path,
-            "--context_length", str(context_length),
-            "--horizon", str(HORIZON),
-            "--save_path", save_model_path
-        ]
+        os.makedirs(state_model_dir, exist_ok=True)
 
-        print(f"Training model for {excluded_state_folder} - {year} "
-              f"(context_length={context_length})...")
+        # Loop through yearly datasets
+        for dataset_file in os.listdir(folder_path):
+            if not dataset_file.endswith(".jsonl"):
+                continue
 
-        try:
-            result = subprocess.run(command, check=True, capture_output=True, text=True)
-            print(result.stdout)
-            if result.stderr:
-                print("STDERR:", result.stderr)
-        except subprocess.CalledProcessError as e:
-            print(f"Training failed for {dataset_file} (exit code {e.returncode})")
-            print(e.stderr)
+            match = re.search(r"dataset_(\d{4})\.jsonl", dataset_file)
+            if not match:
+                print(f"Could not extract year from file: {dataset_file}")
+                continue
+
+            year = int(match.group(1))
+
+            # Restrict years
+            if year < MIN_YEAR or year > MAX_YEAR:
+                continue
+
+            dataset_path = os.path.join(folder_path, dataset_file)
+
+            # Dynamic context length
+            context_length = get_context_length(year, HORIZON)
+
+            if context_length <= 0:
+                print(
+                    f"Invalid context length ({context_length}) "
+                    f"for {year} (horizon {HORIZON}). Skipping."
+                )
+                continue
+
+            # Save path (your requested format)
+            save_model_path = os.path.join(
+                state_model_dir,
+                f"model_excluding_{excluded_state_folder}_{year}.pt"
+            )
+
+            # Command
+            command = [
+                "python", "main.py",
+                "--mode", "train",
+                "--data", dataset_path,
+                "--context_length", str(context_length),
+                "--horizon", str(HORIZON),
+                "--save_path", save_model_path
+            ]
+
+            print(
+                f"Training: excluding={excluded_state_folder} | "
+                f"year={year} | horizon={HORIZON} | "
+                f"context={context_length}"
+            )
+
+            try:
+                result = subprocess.run(
+                    command,
+                    check=True,
+                    capture_output=True,
+                    text=True
+                )
+                print(result.stdout)
+                if result.stderr:
+                    print("STDERR:", result.stderr)
+
+            except subprocess.CalledProcessError as e:
+                print(f"Training failed: {dataset_file}")
+                print(e.stderr)
 
 print("All trainings completed.")

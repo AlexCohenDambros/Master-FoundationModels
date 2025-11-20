@@ -12,7 +12,6 @@ import logging
 from setup.experts.moirai_small_expert import MoiraiSmallExpert
 from setup.experts.moirai_base_expert import MoiraiBaseExpert
 from setup.experts.moirai_large_expert import MoiraiLargeExpert
-from setup.experts.moiraimoe_expert import MoiraiMoEExpert
 from setup.experts.timemoe50M_expert import TimeMoE50MExpert
 from setup.experts.timemoe200M_expert import TimeMoE200MExpert
 from setup.experts.timesfm_expert import TimesFMExpert
@@ -34,7 +33,6 @@ EXPERT_CLASS_MAP = {
     "Moirai-Small": MoiraiSmallExpert,
     "Moirai-Base": MoiraiBaseExpert,
     "Moirai-Large": MoiraiLargeExpert,
-    "Moirai-MoE": MoiraiMoEExpert,
     "Time-MoE50M": TimeMoE50MExpert,
     "Time-MoE200M": TimeMoE200MExpert,
     "TimesFM": TimesFMExpert,
@@ -568,6 +566,3 @@ def predict_from_model(model_path, series, context_length, horizon, device="cpu"
     else:
         raise ValueError(f"`series` must be 1D or 2D, but got shape {tuple(series.shape)}")
 
-# Note: !!!!!!Importante!!!!!!
-# Ponto crítico, se o modelo for treinado com um context_lenght de 168 por exemplo, quando carregar e fazer uma previsao, o context_lenght deve ser igual o do treino.
-# Todo: ponto de pequisa futura, verificar como deixar o context_lenght dinamico ou tentar implementar em intervalos.
