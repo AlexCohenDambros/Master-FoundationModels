@@ -386,9 +386,6 @@ def load_jsonl(path):
 # -------------------
 # Train and Save Model
 # ------------------
-# -------------------
-# Train and Save Model
-# ------------------
 def train_and_save(data_path, context_length, horizon, save_path, device="cpu",
                    batch_size=32, epochs=30, lr=1e-3, seed=0, detect_anomaly=False):
     # =============================================================================

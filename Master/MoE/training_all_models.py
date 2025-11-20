@@ -11,7 +11,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 os.environ["NCCL_P2P_DISABLE"] = "1"
 os.environ["NCCL_IB_DISABLE"] = "1"
 
-# Base dataset path
+# Base dataset path (root)
 base_path = "../all_datasets_global_by_years"
 
 # Horizons to train
@@ -35,20 +35,34 @@ def get_context_length(year: int, horizon: int) -> int:
 # ======================================
 # MAIN LOOP
 # ======================================
-for excluded_state_folder in os.listdir(base_path):
-    folder_path = os.path.join(base_path, excluded_state_folder)
-    if not os.path.isdir(folder_path):
+for HORIZON in HORIZONS:
+    print(f"\n=== Processing horizon {HORIZON} ===")
+
+    # Base path for this horizon
+    horizon_base_path = os.path.join(base_path, f"horizon_{HORIZON}")
+    if not os.path.exists(horizon_base_path):
+        print(f"Path not found: {horizon_base_path}")
         continue
 
-    # Loop through horizons
-    for HORIZON in HORIZONS:
+    # Loop through excluded state folders
+    for excluded_state_folder in os.listdir(horizon_base_path):
+
+        # expecting: excluding_STATE
+        if not excluded_state_folder.startswith("excluding_"):
+            continue
+
+        folder_path = os.path.join(horizon_base_path, excluded_state_folder)
+        if not os.path.isdir(folder_path):
+            continue
+
+        # Extract state name
+        excluded_state = excluded_state_folder.replace("excluding_", "")
 
         # Format: trained_models/horizon_X/excluding_STATE/
         horizon_dir = os.path.join(trained_models_root, f"horizon_{HORIZON}")
         state_model_dir = os.path.join(
-            horizon_dir, f"excluding_{excluded_state_folder}"
+            horizon_dir, excluded_state_folder
         )
-
         os.makedirs(state_model_dir, exist_ok=True)
 
         # Loop through yearly datasets
@@ -79,10 +93,10 @@ for excluded_state_folder in os.listdir(base_path):
                 )
                 continue
 
-            # Save path (your requested format)
+            # Save path
             save_model_path = os.path.join(
                 state_model_dir,
-                f"model_excluding_{excluded_state_folder}_{year}.pt"
+                f"model_excluding_{excluded_state}_{year}.pt"
             )
 
             # Command
@@ -96,9 +110,10 @@ for excluded_state_folder in os.listdir(base_path):
             ]
 
             print(
-                f"Training: excluding={excluded_state_folder} | "
+                f"Training: excluding={excluded_state} | "
                 f"year={year} | horizon={HORIZON} | "
-                f"context={context_length}"
+                f"context={context_length} | "
+                f"data={dataset_path} | "
             )
 
             try:
