@@ -9,22 +9,22 @@ import random
 
 import logging
 
-from setup.experts.moirai_small_expert import MoiraiSmallExpert
-from setup.experts.moirai_base_expert import MoiraiBaseExpert
-from setup.experts.moirai_large_expert import MoiraiLargeExpert
-from setup.experts.timemoe50M_expert import TimeMoE50MExpert
-from setup.experts.timemoe200M_expert import TimeMoE200MExpert
-from setup.experts.timesfm_expert import TimesFMExpert
-from setup.experts.timer_expert import TimerExpert
-from setup.experts.chronos_t5_tiny import Chronost5TinyExpert
-from setup.experts.chronos_t5_mini import Chronost5MiniExpert
-from setup.experts.chronos_t5_small import Chronost5SmallExpert
-from setup.experts.chronos_t5_base import Chronost5BaseExpert
-from setup.experts.chronos_t5_large import Chronost5LargeExpert
-from setup.experts.chronos_bolt_tiny import ChronosBoltTinyExpert
-from setup.experts.chronos_bolt_mini import ChronosBoltMiniExpert
-from setup.experts.chronos_bolt_small import ChronosBoltSmallExpert
-from setup.experts.chronos_bolt_base import ChronosBoltBaseExpert
+from setup.new_experts.moirai_small_expert import MoiraiSmallExpert
+from setup.new_experts.moirai_base_expert import MoiraiBaseExpert
+from setup.new_experts.moirai_large_expert import MoiraiLargeExpert
+from setup.new_experts.timemoe50M_expert import TimeMoE50MExpert
+from setup.new_experts.timemoe200M_expert import TimeMoE200MExpert
+from setup.new_experts.timesfm_expert import TimesFMExpert
+from setup.new_experts.timer_expert import TimerExpert
+from setup.new_experts.chronos_t5_tiny import Chronost5TinyExpert
+from setup.new_experts.chronos_t5_mini import Chronost5MiniExpert
+from setup.new_experts.chronos_t5_small import Chronost5SmallExpert
+from setup.new_experts.chronos_t5_base import Chronost5BaseExpert
+from setup.new_experts.chronos_t5_large import Chronost5LargeExpert
+from setup.new_experts.chronos_bolt_tiny import ChronosBoltTinyExpert
+from setup.new_experts.chronos_bolt_mini import ChronosBoltMiniExpert
+from setup.new_experts.chronos_bolt_small import ChronosBoltSmallExpert
+from setup.new_experts.chronos_bolt_base import ChronosBoltBaseExpert
 
 os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
 os.environ["TRANSFORMERS_VERBOSITY"] = "error"
