@@ -5,7 +5,7 @@ from transformers import AutoModelForCausalLM
 class TimerExpert(nn.Module):
     def __init__(self, device: str = 'cpu'):
         super().__init__()
-        
+
         if device.lower() == "cuda":
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
         else:
@@ -30,4 +30,4 @@ class TimerExpert(nn.Module):
                 max_new_tokens=prediction_length,
             )
 
-        return forecast.squeeze(0)
+        return forecast.squeeze(1)
