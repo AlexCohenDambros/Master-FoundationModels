@@ -5,11 +5,16 @@ from transformers import AutoModelForCausalLM
 class TimeMoE50MExpert(nn.Module):
     def __init__(self, device: str = 'cpu'):
         super().__init__()
-        self.device = device
+
+        if device.lower() == "cuda":
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        else:
+            self.device = "cpu"
 
     def forward(self, input_tensor: torch.Tensor, context_length: int, prediction_length: int) -> torch.Tensor:
         model = AutoModelForCausalLM.from_pretrained(
             "Maple728/TimeMoE-50M",
+            device_map=self.device,
             trust_remote_code=True,
         )
         model.to(self.device)

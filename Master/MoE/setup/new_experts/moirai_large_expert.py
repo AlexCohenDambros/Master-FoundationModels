@@ -5,7 +5,11 @@ from uni2ts.model.moirai import MoiraiForecast, MoiraiModule
 class MoiraiLargeExpert(nn.Module):
     def __init__(self,  device: str = 'cpu'):
         super().__init__()
-        self.device = device
+        
+        if device.lower() == "cuda":
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        else:
+            self.device = "cpu"
 
     def forward(self, input_tensor: torch.Tensor, context_length: int, prediction_length: int) -> torch.Tensor:
         model = MoiraiForecast(
