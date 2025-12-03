@@ -28,7 +28,7 @@ from setup.new_experts.chronos_bolt_base import ChronosBoltBaseExpert
 
 os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
 os.environ["TRANSFORMERS_VERBOSITY"] = "error"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 EXPERT_CLASS_MAP = {
     "Moirai-Small": MoiraiSmallExpert,
@@ -466,18 +466,15 @@ def train_and_save(data_path, context_length, horizon, save_path, device,
         train_loss = 0
 
         for data, target in train_loader:
-            data = data.to(device)
-            target = target.to(device)
-
             # -------------------------
             # Standard Scaler
             # -------------------------
-            mean = data.mean(dim=1, keepdim=True).to(device)   
-            std = data.std(dim=1, keepdim=True).to(device)     
+            mean = data.mean(dim=1, keepdim=True)  
+            std = data.std(dim=1, keepdim=True)   
             data_norm = (data - mean) / (std + 1e-8)  
             preds_norm = model(data_norm, context_length=context_length, horizon=horizon)
             
-            preds = preds_norm.to(device) * (std + 1e-8) + mean
+            preds = preds_norm * (std + 1e-8) + mean
 
             loss = loss_fn(preds, target)
 

@@ -3,13 +3,10 @@ import torch.nn as nn
 from chronos import BaseChronosPipeline
 
 class Chronost5SmallExpert(nn.Module):
-    def __init__(self, device: str = 'cpu'):
+    def __init__(self, device: str):
         super().__init__()
         
-        if device.lower() == "cuda":
-            self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        else:
-            self.device = "cpu"
+        self.device = device
 
     def forward(self, input_tensor: torch.Tensor, context_length: int, prediction_length: int) -> torch.Tensor:
         input_tensor = input_tensor.to(self.device)

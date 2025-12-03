@@ -18,7 +18,7 @@ from setup.experts.chronos_expert import ChronosExpert
 
 os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
 os.environ["TRANSFORMERS_VERBOSITY"] = "error"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 EXPERT_CLASS_MAP = {
     "Moirai": MoiraiExpert,

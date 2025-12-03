@@ -3,18 +3,15 @@ import torch.nn as nn
 import timesfm
 
 class TimesFMExpert(nn.Module):
-    def __init__(self, device: str = 'cpu'):
+    def __init__(self, device: str):
         super().__init__()
 
-        if device.lower() == "cuda":
-            self.device = "gpu" if torch.cuda.is_available() else "cpu"
-        else:
-            self.device = "cpu"
+        self.device = device
     
     def forward(self, input_tensor: torch.Tensor, context_length: int, prediction_length: int) -> torch.Tensor:
         model = timesfm.TimesFm(
             hparams=timesfm.TimesFmHparams(
-                backend=self.device,
+                backend="gpu" if self.device.lower() == "cuda" else "cpu",
                 per_core_batch_size=32,
                 horizon_len=prediction_length,
                 num_layers=50,
