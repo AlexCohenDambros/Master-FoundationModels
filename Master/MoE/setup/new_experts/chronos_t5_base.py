@@ -17,6 +17,8 @@ class Chronost5BaseExpert(nn.Module):
             torch_dtype=torch.bfloat16,
         )
 
+        model.to(self.device)
+
         with torch.no_grad():
             _, output_chronos_scaled = model.predict_quantiles(
                 context=input_tensor,
