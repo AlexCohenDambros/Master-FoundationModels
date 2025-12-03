@@ -107,7 +107,7 @@ for HORIZON in HORIZONS:
                 "--context_length", str(context_length),
                 "--horizon", str(HORIZON),
                 "--save_path", save_model_path,
-                "--device", "cpu"
+                "--device", "cuda"
             ]
 
             print(command)
