@@ -37,9 +37,9 @@ class MoiraiBaseExpert(nn.Module):
                 past_is_pad = torch.zeros_like(past_target, dtype=torch.bool).squeeze(-1)  
 
                 forecast = model(
-                    past_target=past_target,
-                    past_observed_target=past_observed_target,
-                    past_is_pad=past_is_pad,
+                    past_target=past_target.to(self.device),
+                    past_observed_target=past_observed_target.to(self.device),
+                    past_is_pad=past_is_pad.to(self.device)
                 )
 
                 out_row = torch.as_tensor(forecast.mean(dim=1), dtype=torch.float32).reshape(1, -1).to(self.device)

@@ -28,6 +28,7 @@ from setup.new_experts.chronos_bolt_base import ChronosBoltBaseExpert
 
 os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
 os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 EXPERT_CLASS_MAP = {
     "Moirai-Small": MoiraiSmallExpert,
@@ -387,7 +388,7 @@ def load_jsonl(path):
 # Train and Save Model
 # ------------------
 def train_and_save(data_path, context_length, horizon, save_path, device="cpu",
-                   batch_size=32, epochs=30, lr=1e-3, seed=0, detect_anomaly=False):
+                   batch_size=32, epochs=20, lr=1e-3, seed=0, detect_anomaly=False):
     # =============================================================================
     # PT: Treina apenas o roteador (gating) do modelo MoERouter usando uma base de 
     #     séries temporais e salva o modelo treinado. Os experts permanecem 
@@ -469,12 +470,12 @@ def train_and_save(data_path, context_length, horizon, save_path, device="cpu",
             # -------------------------
             # Standard Scaler
             # -------------------------
-            mean = data.mean(dim=1, keepdim=True)     
-            std = data.std(dim=1, keepdim=True)       
+            mean = data.mean(dim=1, keepdim=True).to(device)   
+            std = data.std(dim=1, keepdim=True).to(device)     
             data_norm = (data - mean) / (std + 1e-8)  
             preds_norm = model(data_norm, context_length=context_length, horizon=horizon)
             
-            preds = preds_norm * (std + 1e-8) + mean
+            preds = preds_norm.to(device) * (std + 1e-8) + mean
 
             loss = loss_fn(preds, target)
 

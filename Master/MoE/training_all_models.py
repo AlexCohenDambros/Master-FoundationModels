@@ -106,7 +106,8 @@ for HORIZON in HORIZONS:
                 "--data", dataset_path,
                 "--context_length", str(context_length),
                 "--horizon", str(HORIZON),
-                "--save_path", save_model_path
+                "--save_path", save_model_path,
+                "--device", "cuda"
             ]
 
             print(

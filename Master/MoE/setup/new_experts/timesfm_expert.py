@@ -26,10 +26,8 @@ class TimesFMExpert(nn.Module):
             ),
         )
 
-        
-        input_np = input_tensor.clone().detach().cpu().numpy()
-        
         with torch.no_grad():
-            out, _ = model.forecast(input_np) 
+            forecast, _ = model.forecast(inputs=input_tensor.to(torch.float32).cpu())
 
-        return torch.from_numpy(out).float()
+
+        return torch.tensor(forecast).to(self.device)

@@ -21,9 +21,9 @@ class Chronost5BaseExpert(nn.Module):
         )
 
         with torch.no_grad():
-            _, out_mean = model.predict_quantiles(
+            _, output_chronos_scaled = model.predict_quantiles(
                 context=input_tensor,
                 prediction_length=prediction_length,
             )
 
-        return out_mean
+        return output_chronos_scaled.to(self.device)
