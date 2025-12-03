@@ -128,7 +128,7 @@ class MoERouter(nn.Module):
     #       and combines predictions by weights.
     # =============================================================================
 
-    def __init__(self, context_length:int, device="cpu"):
+    def __init__(self, context_length:int, device: str):
         super().__init__()
         self.device = device
 
@@ -306,7 +306,7 @@ class MoERouter(nn.Module):
         print(f"Model saved in {path}")
 
     @staticmethod
-    def load(path, context_length, device="cpu"):
+    def load(path, context_length, device):
         """
         PT: Reconstrói MoERouter a partir do checkpoint. Requer que EXPERT_CLASS_MAP esteja disponível
             e que a mesma ordem de chaves seja usada.
@@ -387,7 +387,7 @@ def load_jsonl(path):
 # -------------------
 # Train and Save Model
 # ------------------
-def train_and_save(data_path, context_length, horizon, save_path, device="cpu",
+def train_and_save(data_path, context_length, horizon, save_path, device,
                    batch_size=32, epochs=20, lr=1e-3, seed=0, detect_anomaly=False):
     # =============================================================================
     # PT: Treina apenas o roteador (gating) do modelo MoERouter usando uma base de 
@@ -440,7 +440,9 @@ def train_and_save(data_path, context_length, horizon, save_path, device="cpu",
     random.seed(seed)
     torch.manual_seed(seed)
     
-    if "cuda" in device:
+    if "cuda" == device:
+        print("GPUs visíveis:", torch.cuda.device_count())
+        print("Usando:", torch.cuda.get_device_name(0))
         torch.cuda.manual_seed_all(seed)
 
     ds = load_jsonl(data_path)
@@ -512,7 +514,7 @@ def train_and_save(data_path, context_length, horizon, save_path, device="cpu",
 # -------------------
 # Predict model
 # ------------------
-def predict_from_model(model_path, series, context_length, horizon, device="cpu", verbose=True):
+def predict_from_model(model_path, series, context_length, horizon, device, verbose=True):
     # =============================================================================
     # PT: Carrega um modelo salvo do tipo MoERouter e realiza a previsão para uma
     #     ou várias séries temporais fornecidas. A série é cortada para o tamanho
