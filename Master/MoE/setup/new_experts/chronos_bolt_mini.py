@@ -3,9 +3,9 @@ import torch.nn as nn
 from chronos import BaseChronosPipeline
 
 class ChronosBoltMiniExpert(nn.Module):
-    def __init__(self, device: str):
+    def __init__(self,  device):
         super().__init__()
-
+    
         self.device = device
 
     def forward(self, input_tensor: torch.Tensor, context_length: int, prediction_length: int) -> torch.Tensor:
@@ -17,8 +17,6 @@ class ChronosBoltMiniExpert(nn.Module):
             torch_dtype=torch.bfloat16,
         )
 
-        model.to(self.device)
-        
         with torch.no_grad():
             _, output_chronos_scaled = model.predict_quantiles(
                 context=input_tensor,

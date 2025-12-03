@@ -3,9 +3,9 @@ import torch.nn as nn
 from chronos import BaseChronosPipeline
 
 class Chronost5MiniExpert(nn.Module):
-    def __init__(self, device: str):
+    def __init__(self,  device):
         super().__init__()
-
+    
         self.device = device
 
     def forward(self, input_tensor: torch.Tensor, context_length: int, prediction_length: int) -> torch.Tensor:
@@ -16,8 +16,6 @@ class Chronost5MiniExpert(nn.Module):
             device_map=self.device,
             torch_dtype=torch.bfloat16,
         )
-
-        model.to(self.device)
 
         with torch.no_grad():
             _, output_chronos_scaled = model.predict_quantiles(

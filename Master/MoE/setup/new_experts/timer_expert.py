@@ -3,9 +3,9 @@ import torch.nn as nn
 from transformers import AutoModelForCausalLM
 
 class TimerExpert(nn.Module):
-    def __init__(self, device: str):
+    def __init__(self,  device):
         super().__init__()
-
+    
         self.device = device
         
     def forward(self, input_tensor: torch.Tensor, context_length: int, prediction_length: int) -> torch.Tensor:

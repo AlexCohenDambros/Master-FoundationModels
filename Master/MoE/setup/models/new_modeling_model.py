@@ -192,9 +192,13 @@ class MoERouter(nn.Module):
         Returns: (batch_size, horizon) combined predictions.
         """
 
+        device = self.device
+
+        print(device)
+        
         # PT: move o input para o device do modelo (pode já estar no mesmo device; .to faz nada nesse caso)
         # EN: move the input to the model's device (it may already be on the same device; .to does nothing in that case)
-        x_device = x.to(self.device)
+        x_device = x.to(device)
 
         # computa logits (batch_size, E) e probs softmax (batch_size, E)
         logits = self.gating(x_device)                # raw scores do roteador / router raw scores
@@ -229,9 +233,9 @@ class MoERouter(nn.Module):
 
         # PT: tensor final que irá armazenar as predições combinadas (batch_size, horizon)
         # EN: final tensor that will store the combined predictions (batch_size, horizon)
-        final_preds = torch.zeros((batch_size, horizon), device=self.device)
+        final_preds = torch.zeros((batch_size, horizon), device=device)
 
-        device = self.device
+        
 
         '''
         PT: 

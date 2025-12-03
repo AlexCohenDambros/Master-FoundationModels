@@ -3,9 +3,9 @@ import torch.nn as nn
 from uni2ts.model.moirai import MoiraiForecast, MoiraiModule
 
 class MoiraiSmallExpert(nn.Module):
-    def __init__(self, device: str):
+    def __init__(self,  device):
         super().__init__()
-        
+    
         self.device = device
 
     def forward(self, input_tensor: torch.Tensor, context_length: int, prediction_length: int) -> torch.Tensor:
