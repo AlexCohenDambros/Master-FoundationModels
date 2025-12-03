@@ -11,6 +11,14 @@ import matplotlib.pyplot as plt
 import timesfm
 import pandas as pd
 
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
+import torch
+
+print("GPUs visíveis:", torch.cuda.device_count())
+print("Usando:", torch.cuda.get_device_name(0))
+
 
 # ### Get data SP
 
