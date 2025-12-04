@@ -456,7 +456,6 @@ def train_and_save(data_path, context_length, horizon, save_path, device,
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
 
     model = MoERouter(context_length=context_length, device=device)
-    model.to(device)
 
     opt = torch.optim.Adam(model.gating.parameters(), lr=lr)
     loss_fn = nn.HuberLoss(delta=2.0, reduction='mean')

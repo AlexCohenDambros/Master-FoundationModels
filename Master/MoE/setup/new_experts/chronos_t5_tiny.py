@@ -11,12 +11,10 @@ class Chronost5TinyExpert(nn.Module):
     def forward(self, input_tensor: torch.Tensor, context_length: int, prediction_length: int) -> torch.Tensor:
         input_tensor = input_tensor.to(self.device)
 
-        print(self.device)
 
         model = BaseChronosPipeline.from_pretrained(
             "amazon/chronos-t5-tiny",  # use "amazon/chronos-bolt-small" for the corresponding Chronos-Bolt model
             device_map=self.device,
-            torch_dtype=torch.bfloat16,
         )
 
         with torch.no_grad():
