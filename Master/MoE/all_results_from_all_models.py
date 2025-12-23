@@ -7,7 +7,7 @@ from transformers import AutoModelForCausalLM
 from chronos import BaseChronosPipeline
 import timesfm
 from uni2ts.model.moirai import MoiraiForecast, MoiraiModule
-from setup.models.modeling_model import predict_from_model
+from setup.models.new_modeling_model import predict_from_model
 from sklearn.metrics import mean_absolute_percentage_error
 
 # ===============================
@@ -91,15 +91,15 @@ def process_dataset(state_code, year, context_length, prediction_length):
     times_dict["Time-MoE200M"] = round(time.time() - start, 4)
 
     # -------- Timer --------
+    tensor_train_scaled = tensor_train_scaled.squeeze(-1)
     start = time.time()
     model = AutoModelForCausalLM.from_pretrained(
         "thuml/sundial-base-128m", trust_remote_code=True
     )
-    outs = []
-    for i in range(tensor_train_scaled.size(0)):
-        fc = model.generate(tensor_train_scaled[i].unsqueeze(0), max_new_tokens=prediction_length, num_samples=20)
-        outs.append(torch.as_tensor(fc.mean(dim=1)).reshape(1, -1))
-    output_timer = torch.cat(outs) * std_vals + mean_vals
+    out = model.generate(tensor_train_scaled, max_new_tokens=prediction_length)
+    out = torch.as_tensor(out.squeeze(1))
+
+    output_timer = out * std_vals + mean_vals
     times_dict["Timer"] = round(time.time() - start, 4)
 
     # -------- TimesFM --------
@@ -376,16 +376,24 @@ for horizon in HORIZONS:
     os.makedirs(results_path, exist_ok=True)
     os.makedirs(times_path, exist_ok=True)
 
-    for state_folder in sorted(os.listdir(base_path)):
-        if not os.path.isdir(os.path.join(base_path, state_folder)):
+    horizon_path = os.path.join(base_path, f"horizon_{horizon}")
+    if not os.path.exists(horizon_path):
+        continue
+    
+    for excluding_folder in sorted(os.listdir(horizon_path)):
+        excluding_path = os.path.join(horizon_path, excluding_folder)
+        if not os.path.isdir(excluding_path):
             continue
 
-        state_code = state_folder.replace("excluding_", "")
+        state_code = excluding_folder.replace("excluding_", "")
 
         for year in YEARS:
             context_length = get_context_length(year, horizon)
 
-            print(f"Processing {state_code.upper()} - {year} - Horizon {horizon} - Context {context_length}")
+            print(
+                f"Processing {state_code.upper()} - {year} "
+                f"- Horizon {horizon} - Context {context_length}"
+            )
 
             df_results, df_times = process_dataset(
                 state_code, year, context_length, horizon
