@@ -70,16 +70,6 @@ def process_dataset(state_code, year, context_length, prediction_length):
 
     times_dict = {}
 
-    # -------- Time-MoE 50--------
-    start = time.time()
-    model = AutoModelForCausalLM.from_pretrained(
-        "Maple728/TimeMoE-50M", trust_remote_code=True
-    )
-    out = model.generate(tensor_train_scaled, max_new_tokens=prediction_length)
-    out = out[:, -prediction_length:]
-    output_time_moe_50 = out * std_vals + mean_vals
-    times_dict["Time-MoE50M"] = round(time.time() - start, 4)
-
     # -------- Time-MoE 200--------
     start = time.time()
     model = AutoModelForCausalLM.from_pretrained(
@@ -156,114 +146,6 @@ def process_dataset(state_code, year, context_length, prediction_length):
         feat_dynamic_real_dim=0,
         past_feat_dynamic_real_dim=0,
     )
-    outs = []
-    for i in range(tensor_train_scaled.size(0)):
-        past = tensor_train_scaled[i].unsqueeze(0).unsqueeze(-1)
-        obs = torch.ones_like(past, dtype=torch.bool)
-        pad = torch.zeros_like(past, dtype=torch.bool).squeeze(-1)
-        fc = model(past_target=past, past_observed_target=obs, past_is_pad=pad)
-        outs.append(torch.as_tensor(fc.mean(dim=1)).reshape(1, -1))
-    output_moirai_base = torch.cat(outs) * std_vals + mean_vals
-    times_dict["Moirai-Base"] = round(time.time() - start, 4)
-
-    # -------- Moirai Small --------
-    start = time.time()
-    model = MoiraiForecast(
-        module=MoiraiModule.from_pretrained("Salesforce/moirai-1.1-R-large"),
-        prediction_length=prediction_length,
-        context_length=context_length,
-        patch_size=16,
-        num_samples=100,
-        target_dim=1,
-        feat_dynamic_real_dim=0,
-        past_feat_dynamic_real_dim=0,
-    )
-    outs = []
-    for i in range(tensor_train_scaled.size(0)):
-        past = tensor_train_scaled[i].unsqueeze(0).unsqueeze(-1)
-        obs = torch.ones_like(past, dtype=torch.bool)
-        pad = torch.zeros_like(past, dtype=torch.bool).squeeze(-1)
-        fc = model(past_target=past, past_observed_target=obs, past_is_pad=pad)
-        outs.append(torch.as_tensor(fc.mean(dim=1)).reshape(1, -1))
-    output_moirai_large = torch.cat(outs) * std_vals + mean_vals
-    times_dict["Moirai-Large"] = round(time.time() - start, 4)
-
-    # -------- Chronos-t5-Tiny --------
-    start = time.time()
-    model = BaseChronosPipeline.from_pretrained(
-       "amazon/chronos-t5-tiny", device_map="cpu", torch_dtype=torch.bfloat16
-    )
-    _, out = model.predict_quantiles(
-        context=tensor_train_scaled, prediction_length=prediction_length
-    )
-    output_chronos_t5_tiny = out * std_vals + mean_vals
-    times_dict["Chronos-t5-Tiny"] = round(time.time() - start, 4)
-
-    # -------- Chronos-t5-Mini --------
-    start = time.time()
-    model = BaseChronosPipeline.from_pretrained(
-       "amazon/chronos-t5-mini", device_map="cpu", torch_dtype=torch.bfloat16
-    )
-    _, out = model.predict_quantiles(
-        context=tensor_train_scaled, prediction_length=prediction_length
-    )
-    output_chronos_t5_mini = out * std_vals + mean_vals
-    times_dict["Chronos-t5-Mini"] = round(time.time() - start, 4)
-
-    # -------- Chronos-t5-Small --------
-    start = time.time()
-    model = BaseChronosPipeline.from_pretrained(
-       "amazon/chronos-t5-small", device_map="cpu", torch_dtype=torch.bfloat16
-    )
-    _, out = model.predict_quantiles(
-        context=tensor_train_scaled, prediction_length=prediction_length
-    )
-    output_chronos_t5_small = out * std_vals + mean_vals
-    times_dict["Chronos-t5-Small"] = round(time.time() - start, 4)
-
-    # -------- Chronos-t5-Base --------
-    start = time.time()
-    model = BaseChronosPipeline.from_pretrained(
-       "amazon/chronos-t5-base", device_map="cpu", torch_dtype=torch.bfloat16
-    )
-    _, out = model.predict_quantiles(
-        context=tensor_train_scaled, prediction_length=prediction_length
-    )
-    output_chronos_t5_base = out * std_vals + mean_vals
-    times_dict["Chronos-t5-Base"] = round(time.time() - start, 4)
-
-    # -------- Chronos-t5-Large --------
-    start = time.time()
-    model = BaseChronosPipeline.from_pretrained(
-       "amazon/chronos-t5-large", device_map="cpu", torch_dtype=torch.bfloat16
-    )
-    _, out = model.predict_quantiles(
-        context=tensor_train_scaled, prediction_length=prediction_length
-    )
-    output_chronos_t5_large = out * std_vals + mean_vals
-    times_dict["Chronos-t5-Large"] = round(time.time() - start, 4)
-
-    # -------- Chronos-Bolt-Tiny --------
-    start = time.time()
-    model = BaseChronosPipeline.from_pretrained(
-       "amazon/chronos-bolt-tiny", device_map="cpu", torch_dtype=torch.bfloat16
-    )
-    _, out = model.predict_quantiles(
-        context=tensor_train_scaled, prediction_length=prediction_length
-    )
-    output_chronos_bolt_tiny = out * std_vals + mean_vals
-    times_dict["Chronos-Bolt-Tiny"] = round(time.time() - start, 4)
-
-    # -------- Chronos-Bolt-Mini --------
-    start = time.time()
-    model = BaseChronosPipeline.from_pretrained(
-       "amazon/chronos-bolt-mini", device_map="cpu", torch_dtype=torch.bfloat16
-    )
-    _, out = model.predict_quantiles(
-        context=tensor_train_scaled, prediction_length=prediction_length
-    )
-    output_chronos_bolt_mini = out * std_vals + mean_vals
-    times_dict["Chronos-Bolt-Mini"] = round(time.time() - start, 4)
 
     # -------- Chronos-Bolt-Small --------
     start = time.time()
@@ -275,17 +157,6 @@ def process_dataset(state_code, year, context_length, prediction_length):
     )
     output_chronos_bolt_small = out * std_vals + mean_vals
     times_dict["Chronos-Bolt-Small"] = round(time.time() - start, 4)
-
-    # -------- Chronos-Bolt-Base --------
-    start = time.time()
-    model = BaseChronosPipeline.from_pretrained(
-       "amazon/chronos-bolt-base", device_map="cpu", torch_dtype=torch.bfloat16
-    )
-    _, out = model.predict_quantiles(
-        context=tensor_train_scaled, prediction_length=prediction_length
-    )
-    output_chronos_bolt_base = out * std_vals + mean_vals
-    times_dict["Chronos-Bolt-Base"] = round(time.time() - start, 4)
 
     # -------- My-MoE --------
     start = time.time()
@@ -305,40 +176,20 @@ def process_dataset(state_code, year, context_length, prediction_length):
 
     model_outputs = {
         "Moirai-Small": output_moirai_small,
-        "Moirai-Base": output_moirai_base,
-        "Moirai-Large": output_moirai_large,
-        "Time-MoE50M": output_time_moe_50,
         "Time-MoE200M": output_time_moe_200,
         "TimesFM": output_timesfm,
         "Timer": output_timer,
-        "Chronos-t5-Tiny": output_chronos_t5_tiny,
-        "Chronos-t5-Mini": output_chronos_t5_mini,
-        "Chronos-t5-Small": output_chronos_t5_small,
-        "Chronos-t5-Base": output_chronos_t5_base,
-        "Chronos-t5-Large": output_chronos_t5_large,
-        "Chronos-Bolt-Tiny": output_chronos_bolt_tiny,
-        "Chronos-Bolt-Mini": output_chronos_bolt_mini,
         "Chronos-Bolt-Small": output_chronos_bolt_small,
-        "Chronos-Bolt-Base": output_chronos_bolt_base,
         "My-MoE": output_mymoe
     }
 
-    foundation_keys = ["Moirai-Small",
-        "Moirai-Base",
-        "Moirai-Large",
-        "Time-MoE50M",
-        "Time-MoE200M",
+    foundation_keys = [
+        "Moirai",
+        "Time-MoE",
         "TimesFM",
         "Timer",
-        "Chronos-t5-Tiny",
-        "Chronos-t5-Mini",
-        "Chronos-t5-Small",
-        "Chronos-t5-Base",
-        "Chronos-t5-Large",
-        "Chronos-Bolt-Tiny",
-        "Chronos-Bolt-Mini",
-        "Chronos-Bolt-Small",
-        "Chronos-Bolt-Base"]
+        "Chronos",
+        ]
     
     model_outputs["Mean Foundation Models"] = torch.stack(
         [model_outputs[k] for k in foundation_keys], dim=0
