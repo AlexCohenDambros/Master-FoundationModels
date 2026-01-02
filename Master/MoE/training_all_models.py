@@ -22,6 +22,8 @@ BASE_CONTEXT = 410
 MAX_YEAR = 2024
 MIN_YEAR = 2020
 
+top_k = 1
+
 # Root directory for trained models
 trained_models_root = "trained_models"
 os.makedirs(trained_models_root, exist_ok=True)
@@ -106,6 +108,7 @@ for HORIZON in HORIZONS:
                 "--data", dataset_path,
                 "--context_length", str(context_length),
                 "--horizon", str(HORIZON),
+                "--top_k", str(top_k),
                 "--save_path", save_model_path
             ]
 
@@ -113,6 +116,7 @@ for HORIZON in HORIZONS:
                 f"Training: excluding={excluded_state} | "
                 f"year={year} | horizon={HORIZON} | "
                 f"context={context_length} | "
+                f"top_k={top_k} | "
                 f"data={dataset_path} | "
             )
 

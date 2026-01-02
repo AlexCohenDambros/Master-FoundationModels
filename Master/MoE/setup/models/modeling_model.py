@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+from tabnanny import verbose
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -244,27 +245,46 @@ class MoERouter(nn.Module):
             out = out.to(device).float().detach()
             preds_by_expert[expert_idx, idxs, :] = out
 
-        # PT: Agora combinamos as predições *apenas* entre os top-k escolhidos para cada amostra. 
-        # EN: Now we combine predictions *only* from the top-k chosen for each sample. 
+        # PT:
+        # Combinação final das predições:
+        #  - se top_k == 1: hard routing (usa apenas o expert com maior peso)
+        #  - se top_k > 1: média ponderada das predições
+        #
+        # EN:
+        # Final prediction combination:
+        #  - if top_k == 1: hard routing (use only the highest-weight expert)
+        #  - if top_k > 1: weighted average of predictions
         for i in range(batch_size):
             idxs = topk_idx[i]
-            weights = probs[i, idxs]              
-            chosen_preds = preds_by_expert[idxs, i, :]
-            combined = (weights.unsqueeze(-1) * chosen_preds).sum(dim=0)
-            final_preds[i] = combined
+
+            if top_k == 1:
+                weight = probs[i, idxs]                   
+                pred = preds_by_expert[idxs, i, :].squeeze(0)
+                final_preds[i] = pred * (1.0 + (weight - weight.detach()))
+
+            else:
+                weights = probs[i, idxs]
+                chosen_preds = preds_by_expert[idxs, i, :]
+                combined = (weights.unsqueeze(-1) * chosen_preds).sum(dim=0)
+                final_preds[i] = combined
 
             # Printing which models were selected on the router
             if verbose:
-                chosen_list = idxs.tolist()
+                chosen_list = idxs.tolist() if top_k > 1 else [idxs.item()]
                 selected_names = [self.expert_keys[int(j)] for j in chosen_list]
+                selected_weights = probs[i, chosen_list].tolist()
+
                 selected_str = ", ".join(
-                    f"{name}: {float(w):.3f}" for name, w in zip(selected_names, weights.tolist())
+                    f"{name}: {float(w):.3f}" for name, w in zip(selected_names, selected_weights)
                 )
 
                 not_selected_idx = [j for j in range(self.num_experts) if j not in chosen_list]
                 not_selected_names = [self.expert_keys[j] for j in not_selected_idx]
                 not_selected_weights = [float(probs[i, j].item()) for j in not_selected_idx]
-                not_selected_str = ", ".join(f"{name}: {w:.3f}" for name, w in zip(not_selected_names, not_selected_weights))
+
+                not_selected_str = ", ".join(
+                    f"{name}: {w:.3f}" for name, w in zip(not_selected_names, not_selected_weights)
+                )
 
                 print(f"Sample: Selected -> {selected_str}; Not selected -> {not_selected_str}")
 
@@ -367,8 +387,8 @@ def load_jsonl(path):
 # -------------------
 # Train and Save Model
 # ------------------
-def train_and_save(data_path, context_length, horizon, save_path, device="cpu",
-                   batch_size=32, epochs=30, lr=1e-3, seed=0, detect_anomaly=False):
+def train_and_save(data_path, context_length, horizon, save_path, top_k=2, device="cpu",
+                   batch_size=32, epochs=20, lr=1e-4, seed=0, detect_anomaly=False):
     # =============================================================================
     # PT: Treina apenas o roteador (gating) do modelo MoERouter usando uma base de 
     #     séries temporais e salva o modelo treinado. Os experts permanecem 
@@ -380,6 +400,7 @@ def train_and_save(data_path, context_length, horizon, save_path, device="cpu",
     #     - `context_length`: número de pontos de entrada usados como contexto
     #     - `horizon`: horizonte de previsão (número de passos futuros a prever)
     #     - `save_path`: caminho para salvar o modelo treinado (ex: "checkpoints/model.pt")
+    #     - `top_k:` Número de especialistas a serem selecionados por amostra.
     #     - `device`: dispositivo ("cpu" ou "cuda")
     #     - `batch_size`: tamanho do lote para treino
     #     - `epochs`: número de épocas de treinamento
@@ -399,6 +420,7 @@ def train_and_save(data_path, context_length, horizon, save_path, device="cpu",
     #     - `context_length`: number of input points used as context
     #     - `horizon`: forecast horizon (number of future steps to predict)
     #     - `save_path`: path to save the trained model (e.g., "checkpoints/model.pt")
+    #     - `top_k:` number of experts to pick per sample.
     #     - `device`: device ("cpu" or "cuda")
     #     - `batch_size`: training batch size
     #     - `epochs`: number of training epochs
@@ -453,7 +475,7 @@ def train_and_save(data_path, context_length, horizon, save_path, device="cpu",
             mean = data.mean(dim=1, keepdim=True)     
             std = data.std(dim=1, keepdim=True)       
             data_norm = (data - mean) / (std + 1e-8)  
-            preds_norm = model(data_norm, context_length=context_length, horizon=horizon)
+            preds_norm = model(data_norm, context_length=context_length, horizon=horizon, top_k=top_k)
             
             preds = preds_norm * (std + 1e-8) + mean
 
@@ -492,7 +514,7 @@ def train_and_save(data_path, context_length, horizon, save_path, device="cpu",
 # -------------------
 # Predict model
 # ------------------
-def predict_from_model(model_path, series, context_length, horizon, device="cpu", verbose=True):
+def predict_from_model(model_path, series, context_length, horizon, top_k, device="cpu", verbose=True):
     # =============================================================================
     # PT: Carrega um modelo salvo do tipo MoERouter e realiza a previsão para uma
     #     ou várias séries temporais fornecidas. A série é cortada para o tamanho
@@ -501,6 +523,7 @@ def predict_from_model(model_path, series, context_length, horizon, device="cpu"
     #     - `series`: tensor 1D (ex: torch.Size([462])) ou 2D (ex: torch.Size([8, 398]))
     #     - `context_length`: número de pontos usados como contexto (ex: 5)
     #     - `horizon`: número de passos a serem previstos (ex: 2)
+    #     - `top_k:` Número de especialistas a serem selecionados por amostra.
     #     Saída: tensor 2D com previsões (ex: torch.Size([1, horizon]) ou [batch, horizon])
     #
     # EN: Loads a saved MoERouter model and performs prediction for one or more
@@ -510,6 +533,7 @@ def predict_from_model(model_path, series, context_length, horizon, device="cpu"
     #     - `series`: 1D tensor (e.g., torch.Size([462])) or 2D (e.g., torch.Size([8, 398]))
     #     - `context_length`: number of points used as context (e.g., 5)
     #     - `horizon`: number of steps to forecast (e.g., 2)
+    #     - `top_k:` number of experts to pick per sample.
     #     Output: 2D tensor with predictions (ex: torch.Size([1, horizon]) or [batch, horizon])
     # =============================================================================
 
@@ -526,7 +550,7 @@ def predict_from_model(model_path, series, context_length, horizon, device="cpu"
             raise ValueError("Series too short for the requested context")
         x = series[-context_length:].unsqueeze(0)  # (1, context_length)
         with torch.no_grad():
-            out = model(x=x, context_length=context_length, horizon=horizon, verbose=verbose)
+            out = model(x=x, context_length=context_length, horizon=horizon, top_k=top_k, verbose=verbose)
         return out.cpu()  # (1, horizon)
 
     # Case 2D
@@ -537,7 +561,7 @@ def predict_from_model(model_path, series, context_length, horizon, device="cpu"
                 raise ValueError("One of the series is too short for the requested context")
             x = row[-context_length:].unsqueeze(0)  # (1, context_length)
             with torch.no_grad():
-                out = model(x=x, context_length=context_length, horizon=horizon, verbose=verbose)
+                out = model(x=x, context_length=context_length, horizon=horizon, top_k=top_k, verbose=verbose)
             outs.append(out.cpu())
         return torch.cat(outs, dim=0)  # (batch, horizon)
 

@@ -1,5 +1,4 @@
 import os
-import sys
 import json
 import torch
 import torch.nn as nn
@@ -128,7 +127,7 @@ class MoERouter(nn.Module):
     #       and combines predictions by weights.
     # =============================================================================
 
-    def __init__(self, context_length:int, device: str):
+    def __init__(self, context_length:int, device="cpu"):
         super().__init__()
         self.device = device
 
@@ -192,13 +191,9 @@ class MoERouter(nn.Module):
         Returns: (batch_size, horizon) combined predictions.
         """
 
-        device = self.device
-
-        print(device)
-        
         # PT: move o input para o device do modelo (pode já estar no mesmo device; .to faz nada nesse caso)
         # EN: move the input to the model's device (it may already be on the same device; .to does nothing in that case)
-        x_device = x.to(device)
+        x_device = x.to(self.device)
 
         # computa logits (batch_size, E) e probs softmax (batch_size, E)
         logits = self.gating(x_device)                # raw scores do roteador / router raw scores
@@ -233,9 +228,9 @@ class MoERouter(nn.Module):
 
         # PT: tensor final que irá armazenar as predições combinadas (batch_size, horizon)
         # EN: final tensor that will store the combined predictions (batch_size, horizon)
-        final_preds = torch.zeros((batch_size, horizon), device=device)
+        final_preds = torch.zeros((batch_size, horizon), device=self.device)
 
-        
+        device = self.device
 
         '''
         PT: 
@@ -268,27 +263,46 @@ class MoERouter(nn.Module):
             out = out.to(device).float().detach()
             preds_by_expert[expert_idx, idxs, :] = out
 
-        # PT: Agora combinamos as predições *apenas* entre os top-k escolhidos para cada amostra. 
-        # EN: Now we combine predictions *only* from the top-k chosen for each sample. 
+        # PT:
+        # Combinação final das predições:
+        #  - se top_k == 1: hard routing (usa apenas o expert com maior peso)
+        #  - se top_k > 1: média ponderada das predições
+        #
+        # EN:
+        # Final prediction combination:
+        #  - if top_k == 1: hard routing (use only the highest-weight expert)
+        #  - if top_k > 1: weighted average of predictions
         for i in range(batch_size):
             idxs = topk_idx[i]
-            weights = probs[i, idxs]              
-            chosen_preds = preds_by_expert[idxs, i, :]
-            combined = (weights.unsqueeze(-1) * chosen_preds).sum(dim=0)
-            final_preds[i] = combined
+
+            if top_k == 1:
+                weight = probs[i, idxs]                   
+                pred = preds_by_expert[idxs, i, :].squeeze(0)
+                final_preds[i] = pred * (1.0 + (weight - weight.detach()))
+
+            else:
+                weights = probs[i, idxs]
+                chosen_preds = preds_by_expert[idxs, i, :]
+                combined = (weights.unsqueeze(-1) * chosen_preds).sum(dim=0)
+                final_preds[i] = combined
 
             # Printing which models were selected on the router
             if verbose:
-                chosen_list = idxs.tolist()
+                chosen_list = idxs.tolist() if top_k > 1 else [idxs.item()]
                 selected_names = [self.expert_keys[int(j)] for j in chosen_list]
+                selected_weights = probs[i, chosen_list].tolist()
+
                 selected_str = ", ".join(
-                    f"{name}: {float(w):.3f}" for name, w in zip(selected_names, weights.tolist())
+                    f"{name}: {float(w):.3f}" for name, w in zip(selected_names, selected_weights)
                 )
 
                 not_selected_idx = [j for j in range(self.num_experts) if j not in chosen_list]
                 not_selected_names = [self.expert_keys[j] for j in not_selected_idx]
                 not_selected_weights = [float(probs[i, j].item()) for j in not_selected_idx]
-                not_selected_str = ", ".join(f"{name}: {w:.3f}" for name, w in zip(not_selected_names, not_selected_weights))
+
+                not_selected_str = ", ".join(
+                    f"{name}: {w:.3f}" for name, w in zip(not_selected_names, not_selected_weights)
+                )
 
                 print(f"Sample: Selected -> {selected_str}; Not selected -> {not_selected_str}")
 
@@ -310,7 +324,7 @@ class MoERouter(nn.Module):
         print(f"Model saved in {path}")
 
     @staticmethod
-    def load(path, context_length, device):
+    def load(path, context_length, device="cpu"):
         """
         PT: Reconstrói MoERouter a partir do checkpoint. Requer que EXPERT_CLASS_MAP esteja disponível
             e que a mesma ordem de chaves seja usada.
@@ -391,8 +405,8 @@ def load_jsonl(path):
 # -------------------
 # Train and Save Model
 # ------------------
-def train_and_save(data_path, context_length, horizon, save_path, device,
-                   batch_size=32, epochs=20, lr=1e-3, seed=0, detect_anomaly=False):
+def train_and_save(data_path, context_length, horizon, save_path, top_k=2, device="cpu",
+                   batch_size=32, epochs=20, lr=1e-4, seed=0, detect_anomaly=False):
     # =============================================================================
     # PT: Treina apenas o roteador (gating) do modelo MoERouter usando uma base de 
     #     séries temporais e salva o modelo treinado. Os experts permanecem 
@@ -404,6 +418,7 @@ def train_and_save(data_path, context_length, horizon, save_path, device,
     #     - `context_length`: número de pontos de entrada usados como contexto
     #     - `horizon`: horizonte de previsão (número de passos futuros a prever)
     #     - `save_path`: caminho para salvar o modelo treinado (ex: "checkpoints/model.pt")
+    #     - `top_k:` Número de especialistas a serem selecionados por amostra.
     #     - `device`: dispositivo ("cpu" ou "cuda")
     #     - `batch_size`: tamanho do lote para treino
     #     - `epochs`: número de épocas de treinamento
@@ -423,6 +438,7 @@ def train_and_save(data_path, context_length, horizon, save_path, device,
     #     - `context_length`: number of input points used as context
     #     - `horizon`: forecast horizon (number of future steps to predict)
     #     - `save_path`: path to save the trained model (e.g., "checkpoints/model.pt")
+    #     - `top_k:` number of experts to pick per sample.
     #     - `device`: device ("cpu" or "cuda")
     #     - `batch_size`: training batch size
     #     - `epochs`: number of training epochs
@@ -444,9 +460,7 @@ def train_and_save(data_path, context_length, horizon, save_path, device,
     random.seed(seed)
     torch.manual_seed(seed)
     
-    if "cuda" == device:
-        print("GPUs visíveis:", torch.cuda.device_count())
-        print("Usando:", torch.cuda.get_device_name(0))
+    if "cuda" in device:
         torch.cuda.manual_seed_all(seed)
 
     ds = load_jsonl(data_path)
@@ -456,6 +470,7 @@ def train_and_save(data_path, context_length, horizon, save_path, device,
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
 
     model = MoERouter(context_length=context_length, device=device)
+    model.to(device)
 
     opt = torch.optim.Adam(model.gating.parameters(), lr=lr)
     loss_fn = nn.HuberLoss(delta=2.0, reduction='mean')
@@ -469,13 +484,16 @@ def train_and_save(data_path, context_length, horizon, save_path, device,
         train_loss = 0
 
         for data, target in train_loader:
+            data = data.to(device)
+            target = target.to(device)
+
             # -------------------------
             # Standard Scaler
             # -------------------------
-            mean = data.mean(dim=1, keepdim=True)  
-            std = data.std(dim=1, keepdim=True)   
+            mean = data.mean(dim=1, keepdim=True)     
+            std = data.std(dim=1, keepdim=True)       
             data_norm = (data - mean) / (std + 1e-8)  
-            preds_norm = model(data_norm, context_length=context_length, horizon=horizon)
+            preds_norm = model(data_norm, context_length=context_length, horizon=horizon, top_k=top_k)
             
             preds = preds_norm * (std + 1e-8) + mean
 
@@ -514,7 +532,7 @@ def train_and_save(data_path, context_length, horizon, save_path, device,
 # -------------------
 # Predict model
 # ------------------
-def predict_from_model(model_path, series, context_length, horizon, device, verbose=True):
+def predict_from_model(model_path, series, context_length, horizon, top_k, device="cpu", verbose=True):
     # =============================================================================
     # PT: Carrega um modelo salvo do tipo MoERouter e realiza a previsão para uma
     #     ou várias séries temporais fornecidas. A série é cortada para o tamanho
@@ -523,6 +541,7 @@ def predict_from_model(model_path, series, context_length, horizon, device, verb
     #     - `series`: tensor 1D (ex: torch.Size([462])) ou 2D (ex: torch.Size([8, 398]))
     #     - `context_length`: número de pontos usados como contexto (ex: 5)
     #     - `horizon`: número de passos a serem previstos (ex: 2)
+    #     - `top_k:` Número de especialistas a serem selecionados por amostra.
     #     Saída: tensor 2D com previsões (ex: torch.Size([1, horizon]) ou [batch, horizon])
     #
     # EN: Loads a saved MoERouter model and performs prediction for one or more
@@ -532,6 +551,7 @@ def predict_from_model(model_path, series, context_length, horizon, device, verb
     #     - `series`: 1D tensor (e.g., torch.Size([462])) or 2D (e.g., torch.Size([8, 398]))
     #     - `context_length`: number of points used as context (e.g., 5)
     #     - `horizon`: number of steps to forecast (e.g., 2)
+    #     - `top_k:` number of experts to pick per sample.
     #     Output: 2D tensor with predictions (ex: torch.Size([1, horizon]) or [batch, horizon])
     # =============================================================================
 
@@ -548,7 +568,7 @@ def predict_from_model(model_path, series, context_length, horizon, device, verb
             raise ValueError("Series too short for the requested context")
         x = series[-context_length:].unsqueeze(0)  # (1, context_length)
         with torch.no_grad():
-            out = model(x=x, context_length=context_length, horizon=horizon, verbose=verbose)
+            out = model(x=x, context_length=context_length, horizon=horizon, top_k=top_k, verbose=verbose)
         return out.cpu()  # (1, horizon)
 
     # Case 2D
@@ -559,10 +579,9 @@ def predict_from_model(model_path, series, context_length, horizon, device, verb
                 raise ValueError("One of the series is too short for the requested context")
             x = row[-context_length:].unsqueeze(0)  # (1, context_length)
             with torch.no_grad():
-                out = model(x=x, context_length=context_length, horizon=horizon, verbose=verbose)
+                out = model(x=x, context_length=context_length, horizon=horizon, top_k=top_k, verbose=verbose)
             outs.append(out.cpu())
         return torch.cat(outs, dim=0)  # (batch, horizon)
 
     else:
         raise ValueError(f"`series` must be 1D or 2D, but got shape {tuple(series.shape)}")
-

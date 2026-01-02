@@ -6,7 +6,7 @@ Time-MoE/model_time_moe4.py
 
 *.idea
 
-Master/MoE/log_training_*.txt
+Master/MoE/*/*.txt
 
 .venv
 
