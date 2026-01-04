@@ -22,7 +22,8 @@ BASE_CONTEXT = 410
 MAX_YEAR = 2024
 MIN_YEAR = 2020
 
-top_k = 1
+top_k = 2
+norm = "minmax"
 
 # Root directory for trained models
 trained_models_root = "trained_models"
@@ -109,6 +110,7 @@ for HORIZON in HORIZONS:
                 "--context_length", str(context_length),
                 "--horizon", str(HORIZON),
                 "--top_k", str(top_k),
+                "--norm", norm,
                 "--save_path", save_model_path
             ]
 
@@ -117,6 +119,7 @@ for HORIZON in HORIZONS:
                 f"year={year} | horizon={HORIZON} | "
                 f"context={context_length} | "
                 f"top_k={top_k} | "
+                f"norm={norm} | "
                 f"data={dataset_path} | "
             )
 

@@ -9,6 +9,7 @@ def main():
     parser.add_argument("--context_length", type=int, default=168)
     parser.add_argument("--horizon", type=int, default=24)
     parser.add_argument("--top_k", type=int, default=1)
+    parser.add_argument("--norm", type=str, default="std")
     parser.add_argument("--save_path", type=str, default="moe_model.pt")
     parser.add_argument("--device", type=str, default="cpu")
     args = parser.parse_args()
