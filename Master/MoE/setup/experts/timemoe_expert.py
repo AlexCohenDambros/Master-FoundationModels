@@ -11,6 +11,7 @@ class TimeMoEExpert(nn.Module):
         model = AutoModelForCausalLM.from_pretrained(
             "Maple728/TimeMoE-200M",
             trust_remote_code=True,
+            device_map=self.device,
         )
         model.to(self.device)
         model.eval()

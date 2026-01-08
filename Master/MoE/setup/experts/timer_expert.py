@@ -11,6 +11,7 @@ class TimerExpert(nn.Module):
         model = AutoModelForCausalLM.from_pretrained(
             "thuml/sundial-base-128m",
             trust_remote_code=True,
+            device_map=self.device,
 
         )
         model.to(self.device)

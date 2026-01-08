@@ -24,6 +24,7 @@ MIN_YEAR = 2020
 
 top_k = 2
 norm = "minmax"
+device = "cuda"
 
 # Root directory for trained models
 trained_models_root = "trained_models"
@@ -111,7 +112,8 @@ for HORIZON in HORIZONS:
                 "--horizon", str(HORIZON),
                 "--top_k", str(top_k),
                 "--norm", norm,
-                "--save_path", save_model_path
+                "--save_path", save_model_path,
+                "--device", device
             ]
 
             print(
@@ -121,6 +123,7 @@ for HORIZON in HORIZONS:
                 f"top_k={top_k} | "
                 f"norm={norm} | "
                 f"data={dataset_path} | "
+                f"device={device} | "
             )
 
             try:

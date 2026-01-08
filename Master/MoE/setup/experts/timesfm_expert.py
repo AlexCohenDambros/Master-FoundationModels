@@ -10,7 +10,7 @@ class TimesFMExpert(nn.Module):
     def forward(self, input_tensor: torch.Tensor, context_length: int, prediction_length: int) -> torch.Tensor:
         model = timesfm.TimesFm(
             hparams=timesfm.TimesFmHparams(
-                backend=self.device,
+                backend="gpu" if self.device.lower() == "cuda" else "cpu",
                 per_core_batch_size=32,
                 horizon_len=prediction_length,
                 num_layers=50,
@@ -26,6 +26,6 @@ class TimesFMExpert(nn.Module):
         input_np = input_tensor.clone().detach().cpu().numpy()
         
         with torch.no_grad():
-            out, experimental_quantile_forecast = model.forecast(input_np) 
+            out, _ = model.forecast(input_np) 
 
         return torch.from_numpy(out).float()
