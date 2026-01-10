@@ -15,16 +15,16 @@ os.environ["NCCL_IB_DISABLE"] = "1"
 base_path = "../all_datasets_global_by_years"
 
 # Horizons to train
-HORIZONS = [3, 6, 12, 24]
+HORIZONS = [12, 24]
 
 # Base context starting point
 BASE_CONTEXT = 410
 MAX_YEAR = 2024
 MIN_YEAR = 2020
 
-top_k = 2
-norm = "minmax"
-device = "cuda"
+top_k = 1
+norm = "std"
+device = "cpu"
 
 # Root directory for trained models
 trained_models_root = "trained_models"
@@ -103,6 +103,18 @@ for HORIZON in HORIZONS:
                 f"model_excluding_{excluded_state}_{year}.pt"
             )
 
+            # ======================================
+            # SKIP IF MODEL ALREADY EXISTS
+            # ======================================
+            if os.path.exists(save_model_path):
+                print(
+                    f"Model already exists. Skipping: "
+                    f"excluding={excluded_state} | "
+                    f"year={year} | "
+                    f"horizon={HORIZON}"
+                )
+                continue
+
             # Command
             command = [
                 "python", "main.py",
@@ -123,7 +135,7 @@ for HORIZON in HORIZONS:
                 f"top_k={top_k} | "
                 f"norm={norm} | "
                 f"data={dataset_path} | "
-                f"device={device} | "
+                f"device={device}"
             )
 
             try:

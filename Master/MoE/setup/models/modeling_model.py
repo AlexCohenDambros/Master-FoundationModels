@@ -387,7 +387,7 @@ def load_jsonl(path):
 # -------------------
 # Train and Save Model
 # ------------------
-def train_and_save(data_path, context_length, horizon, save_path, top_k=2, device="cpu",
+def train_and_save(data_path, context_length, horizon, save_path, top_k=2, norm="minmax", device="cpu",
                    batch_size=32, epochs=20, lr=1e-4, seed=0, detect_anomaly=False):
     # =============================================================================
     # PT: Treina apenas o roteador (gating) do modelo MoERouter usando uma base de 
@@ -469,15 +469,28 @@ def train_and_save(data_path, context_length, horizon, save_path, top_k=2, devic
             data = data.to(device)
             target = target.to(device)
 
-            # -------------------------
-            # Standard Scaler
-            # -------------------------
-            mean = data.mean(dim=1, keepdim=True)     
-            std = data.std(dim=1, keepdim=True)       
-            data_norm = (data - mean) / (std + 1e-8)  
+            if norm == "std":
+                # -------------------------
+                # Standard Scaler
+                # -------------------------
+                mean = data.mean(dim=1, keepdim=True)     
+                std = data.std(dim=1, keepdim=True)       
+                data_norm = (data - mean) / (std + 1e-8)  
+            
+            else:
+                # -------------------------
+                # Min-Max
+                # -------------------------
+                data_min = data.min(dim=1, keepdim=True).values
+                data_max = data.max(dim=1, keepdim=True).values
+                data_norm = (data - data_min) / (data_max - data_min + 1e-8)
+
             preds_norm = model(data_norm, context_length=context_length, horizon=horizon, top_k=top_k)
             
-            preds = preds_norm * (std + 1e-8) + mean
+            if norm == "std":
+                preds = preds_norm * (std + 1e-8) + mean
+            else:
+                preds = preds_norm * (data_max - data_min + 1e-8) + data_min
 
             loss = loss_fn(preds, target)
 
@@ -510,7 +523,6 @@ def train_and_save(data_path, context_length, horizon, save_path, top_k=2, devic
     print(f'Saving model to {save_path}')
 
     return model
-
 # -------------------
 # Predict model
 # ------------------
