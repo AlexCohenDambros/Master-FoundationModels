@@ -7,7 +7,7 @@ from transformers import AutoModelForCausalLM
 from chronos import BaseChronosPipeline
 import timesfm
 from uni2ts.model.moirai import MoiraiForecast, MoiraiModule
-from setup.models.new_modeling_model import predict_from_model
+from setup.models.modeling_model import predict_from_model
 from sklearn.metrics import mean_absolute_percentage_error
 
 # ===============================
@@ -28,6 +28,8 @@ os.makedirs(results_root, exist_ok=True)
 os.makedirs(times_root, exist_ok=True)
 
 base_path = "../all_datasets_global_by_years"
+
+top_k = 1
 
 # ===============================
 # CONTEXT FUNCTION (DYNAMIC)
@@ -167,6 +169,7 @@ def process_dataset(state_code, year, context_length, prediction_length):
             series=tensor_train_scaled,
             horizon=prediction_length,
             context_length=context_length,
+            top_k=top_k,
             device="cpu"
         )
         output_mymoe = out * std_vals + mean_vals
