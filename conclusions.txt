@@ -1,0 +1,8 @@
+- 2 modelos usando Standard Scaler esta apresentado resultados bons, porém, ainda esta com probabilidade abaixo contra o Chronos e o TimesFM.
+
+- Apenas 1 modelo usando normalização Standard Scaler apresentou resultados parecidos com o 2 modelos usando Standard Scaler.
+
+- Os resultados de 2 modelos usando MinMax não apresentou resultados satisfatórios.
+
+
+

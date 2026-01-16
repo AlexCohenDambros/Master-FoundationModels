@@ -10,9 +10,14 @@ from uni2ts.model.moirai import MoiraiForecast, MoiraiModule
 from setup.models.modeling_model import predict_from_model
 from sklearn.metrics import mean_absolute_percentage_error
 
-# ===============================
-# CONFIG
-# ===============================
+# ======================================
+# GENERAL CONFIGURATION
+# ======================================
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+os.environ["WANDB_MODE"] = "disabled"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["NCCL_P2P_DISABLE"] = "1"
+os.environ["NCCL_IB_DISABLE"] = "1"
 
 file_path = "../dataset_global/dataset_global.jsonl"
 
@@ -29,7 +34,8 @@ os.makedirs(times_root, exist_ok=True)
 
 base_path = "../all_datasets_global_by_years"
 
-top_k = 1
+top_k = 2
+device = 'cuda'
 
 # ===============================
 # CONTEXT FUNCTION (DYNAMIC)
@@ -62,8 +68,8 @@ def process_dataset(state_code, year, context_length, prediction_length):
         print(f"No valid sequences for state={state_code}, year={year}")
         return None, None
 
-    tensor_train = torch.tensor(train_list, dtype=torch.float32)
-    tensor_test = torch.tensor(test_list, dtype=torch.float32)
+    tensor_train = torch.tensor(train_list, dtype=torch.float32, device=device)
+    tensor_test = torch.tensor(test_list, dtype=torch.float32, device=device)
 
     mean_vals = tensor_train.mean(dim=1, keepdim=True)
     std_vals = tensor_train.std(dim=1, keepdim=True)
@@ -72,10 +78,13 @@ def process_dataset(state_code, year, context_length, prediction_length):
 
     times_dict = {}
 
+    tensor_train_scaled = tensor_train_scaled.to(device)
+
+
     # -------- Time-MoE 200--------
     start = time.time()
     model = AutoModelForCausalLM.from_pretrained(
-        "Maple728/TimeMoE-200M", trust_remote_code=True
+        "Maple728/TimeMoE-200M", trust_remote_code=True, device_map=device
     )
     out = model.generate(tensor_train_scaled, max_new_tokens=prediction_length)
     out = out[:, -prediction_length:]
@@ -84,9 +93,11 @@ def process_dataset(state_code, year, context_length, prediction_length):
 
     # -------- Timer --------
     tensor_train_scaled = tensor_train_scaled.squeeze(-1)
+    tensor_train_scaled = tensor_train_scaled.to(device)
+
     start = time.time()
     model = AutoModelForCausalLM.from_pretrained(
-        "thuml/sundial-base-128m", trust_remote_code=True
+        "thuml/sundial-base-128m", trust_remote_code=True, device_map=device
     )
     out = model.generate(tensor_train_scaled, max_new_tokens=prediction_length)
     out = torch.as_tensor(out.squeeze(1))
@@ -98,7 +109,7 @@ def process_dataset(state_code, year, context_length, prediction_length):
     start = time.time()
     model = timesfm.TimesFm(
         hparams=timesfm.TimesFmHparams(
-            backend="cpu",
+            backend="gpu" if device == "cuda" else "cpu",
             per_core_batch_size=32,
             horizon_len=prediction_length,
             num_layers=50,
@@ -110,8 +121,8 @@ def process_dataset(state_code, year, context_length, prediction_length):
         ),
     )
     with torch.no_grad():
-        out, _ = model.forecast(tensor_train_scaled.cpu().numpy())
-    output_timesfm = torch.from_numpy(out).float() * std_vals + mean_vals
+        out, _ = model.forecast(tensor_train_scaled.clone().detach().cpu().numpy())
+    output_timesfm = torch.from_numpy(out).float().to(device) * std_vals + mean_vals
     times_dict["TimesFM"] = round(time.time() - start, 4)
 
     # -------- Moirai Small --------
@@ -126,6 +137,7 @@ def process_dataset(state_code, year, context_length, prediction_length):
         feat_dynamic_real_dim=0,
         past_feat_dynamic_real_dim=0,
     )
+    model.to(device)
     outs = []
     for i in range(tensor_train_scaled.size(0)):
         past = tensor_train_scaled[i].unsqueeze(0).unsqueeze(-1)
@@ -151,11 +163,11 @@ def process_dataset(state_code, year, context_length, prediction_length):
 
     # -------- Chronos-Bolt-Small --------
     start = time.time()
-    model = BaseChronosPipeline.from_pretrained("amazon/chronos-bolt-small", device_map="cpu", torch_dtype=torch.bfloat16)
+    model = BaseChronosPipeline.from_pretrained("amazon/chronos-bolt-small", device_map=device, torch_dtype=torch.bfloat16)
     _, out = model.predict_quantiles(
         context=tensor_train_scaled, prediction_length=prediction_length
     )
-    output_chronos_bolt_small = out * std_vals + mean_vals
+    output_chronos_bolt_small = out.to(device) * std_vals + mean_vals
     times_dict["Chronos-Bolt-Small"] = round(time.time() - start, 4)
 
     # -------- My-MoE --------
@@ -170,9 +182,9 @@ def process_dataset(state_code, year, context_length, prediction_length):
             horizon=prediction_length,
             context_length=context_length,
             top_k=top_k,
-            device="cpu"
+            device=device
         )
-        output_mymoe = out * std_vals + mean_vals
+        output_mymoe = out.to(device) * std_vals + mean_vals
     times_dict["My-MoE"] = round(time.time() - start, 4)
 
     model_outputs = {
@@ -198,13 +210,18 @@ def process_dataset(state_code, year, context_length, prediction_length):
 
     results = {}
     for name, preds in model_outputs.items():
-        preds[preds < 0] = 0
+        preds = preds.to(device)
+
+        preds = torch.clamp(preds, min=0)
+
         mape_list = []
         for i in range(preds.shape[0]):
             mape = mean_absolute_percentage_error(
-                tensor_test[i].numpy(), preds[i].numpy()
+                tensor_test[i].detach().cpu().numpy(),
+                preds[i].detach().cpu().numpy()
             ) * 100
             mape_list.append(round(mape, 4))
+
         results[name] = mape_list
 
     df_results = pd.DataFrame(results).T.reset_index()
