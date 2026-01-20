@@ -458,12 +458,11 @@ def train_and_save(data_path, context_length, horizon, save_path, top_k=2, norm=
     loss_fn = nn.HuberLoss(delta=2.0, reduction='mean')
 
     early_stopping = EarlyStopping(patience=3, delta=0.01)
+    train_loss = 0
 
     for epoch in range(epochs):
 
         model.train()
-
-        train_loss = 0
 
         for data, target in train_loader:
             data = data.to(device)
