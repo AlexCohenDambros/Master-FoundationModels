@@ -12,18 +12,21 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 os.environ["NCCL_P2P_DISABLE"] = "1"
 os.environ["NCCL_IB_DISABLE"] = "1"
 
-N_CORES = 5
+# N_CORES = 5
+N_CORES = 10
 
 base_path = "../all_datasets_global_by_years"
 HORIZONS = [3, 6, 12, 24]
+# HORIZONS = [12]
 
 BASE_CONTEXT = 410
 MAX_YEAR = 2024
 MIN_YEAR = 2020
+# MIN_YEAR = 2024
 
-top_k = 1
-norm = "minmax"
-device = "cuda"
+top_k = 2
+norm = "std"
+device = "cpu"
 
 trained_models_root = "trained_models"
 os.makedirs(trained_models_root, exist_ok=True)

@@ -1,14 +1,11 @@
 import os
-import sys
+import copy
 import json
-from tabnanny import verbose
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 import random
-
-import logging
 
 from setup.experts.moirai_expert import MoiraiExpert
 from setup.experts.moiraimoe_expert import MoiraiMoEExpert
@@ -16,6 +13,7 @@ from setup.experts.timemoe_expert import TimeMoEExpert
 from setup.experts.timesfm_expert import TimesFMExpert
 from setup.experts.timer_expert import TimerExpert
 from setup.experts.chronos_expert import ChronosExpert
+from setup.logging_train import get_log_dir_from_save_path, append_experts_weights, append_train_loss
 
 os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
 os.environ["TRANSFORMERS_VERBOSITY"] = "error"
@@ -29,13 +27,6 @@ EXPERT_CLASS_MAP = {
     "Timer": TimerExpert,
     "Chronos": ChronosExpert,
 }
-
-logging.basicConfig(
-    filename="log_training.txt",     
-    filemode="a",                     
-    format="%(asctime)s - %(message)s",
-    level=logging.INFO
-)
 
 # -------------------
 # Dataset 
@@ -160,7 +151,7 @@ class MoERouter(nn.Module):
         # EN: Move parameters/architecture to the desired device
         self.to(device)
 
-    def forward(self, x: torch.Tensor, context_length: int, horizon: int, top_k: int = 2, verbose: bool = False):
+    def forward(self, x: torch.Tensor, context_length: int, horizon: int, dir_csv_experts:str, top_k: int = 2, verbose: bool = False):
         """
         PT:
         - x: tensor (batch_size, context_length) contendo o contexto por amostra.
@@ -193,17 +184,16 @@ class MoERouter(nn.Module):
 
         # >>>>>>> LOG <<<<<<<
         # Show selected experts and their weights for each sample
-        logging.info("\n=== Selected experts and weights per sample ===")
-
         for i in range(topk_idx.size(0)):
-            chosen_experts = [self.expert_keys[idx.item()] for idx in topk_idx[i]]
-            chosen_weights = topk_vals[i].detach().cpu().numpy()
+            learners = [self.expert_keys[idx.item()] for idx in topk_idx[i]]
+            weights = topk_vals[i].detach().cpu().numpy()
 
-            logging.info(f"Sample {i}:")
-            for exp, w in zip(chosen_experts, chosen_weights):
-                logging.info(f"   Expert: {exp} | Weight: {w:.4f}")
-
-        logging.info("===============================================\n")
+            append_experts_weights(
+                dir_csv_experts,
+                sample_idx=i,
+                learners=learners,
+                weights=weights
+            )
         # >>>>>>> END LOG <<<<<<<
 
         batch_size = x_device.size(0)  # batch_size
@@ -325,7 +315,7 @@ class MoERouter(nn.Module):
 # EarlyStopping
 # -------------------
 class EarlyStopping:
-    def __init__(self, patience=5, delta=0):
+    def __init__(self, patience=5, delta=0.0):
         self.patience = patience
         self.delta = delta
         self.best_score = None
@@ -333,19 +323,20 @@ class EarlyStopping:
         self.counter = 0
         self.best_model_state = None
 
-    def __call__(self, val_loss, model):
-        score = -val_loss
-
+    def __call__(self, loss, model):
+        score = -loss  
         if self.best_score is None:
             self.best_score = score
-            self.best_model_state = model.state_dict()
+            self.best_model_state = copy.deepcopy(model.state_dict())
+
         elif score < self.best_score + self.delta:
             self.counter += 1
             if self.counter >= self.patience:
                 self.early_stop = True
+
         else:
             self.best_score = score
-            self.best_model_state = model.state_dict()
+            self.best_model_state = copy.deepcopy(model.state_dict())
             self.counter = 0
 
     def load_best_model(self, model):
@@ -431,10 +422,11 @@ def train_and_save(data_path, context_length, horizon, save_path, top_k=2, norm=
     #     Output: trained MoERouter model (object instance)
     # =============================================================================
 
-    logging.info("===============================================")
-    logging.info(f"STARTING TRAINING")
-    logging.info(f"Model will be saved at: {save_path}")
-    logging.info("===============================================")
+    #===============================================
+    #   STARTING TRAINING
+    #===============================================
+    log_dir = get_log_dir_from_save_path(save_path)
+    csv_experts = log_dir / "experts_weights_train.csv"
 
     if detect_anomaly:
         torch.autograd.set_detect_anomaly(True)
@@ -457,12 +449,51 @@ def train_and_save(data_path, context_length, horizon, save_path, top_k=2, norm=
     opt = torch.optim.Adam(model.gating.parameters(), lr=lr)
     loss_fn = nn.HuberLoss(delta=2.0, reduction='mean')
 
-    early_stopping = EarlyStopping(patience=3, delta=0.01)
-    train_loss = 0
+    early_stopping = EarlyStopping(patience=3)
 
+    # for epoch in range(epochs):
+
+    #     model.train()
+    #     train_loss = 0
+
+    #     for data, target in train_loader:
+    #         data = data.to(device)
+    #         target = target.to(device)
+
+    #         if norm == "std":
+    #             # -------------------------
+    #             # Standard Scaler
+    #             # -------------------------
+    #             mean = data.mean(dim=1, keepdim=True)     
+    #             std = data.std(dim=1, keepdim=True)       
+    #             data_norm = (data - mean) / (std + 1e-8)  
+            
+    #         else:
+    #             # -------------------------
+    #             # Min-Max
+    #             # -------------------------
+    #             data_min = data.min(dim=1, keepdim=True).values
+    #             data_max = data.max(dim=1, keepdim=True).values
+    #             data_norm = (data - data_min) / (data_max - data_min + 1e-8)
+
+    #         preds_norm = model(data_norm, context_length=context_length, horizon=horizon, top_k=top_k)
+            
+    #         if norm == "std":
+    #             preds = preds_norm * (std + 1e-8) + mean
+    #         else:
+    #             preds = preds_norm * (data_max - data_min + 1e-8) + data_min
+
+    #         loss = loss_fn(preds, target)
+
+    #         opt.zero_grad()
+    #         loss.backward()
+    #         opt.step()
+
+    #         train_loss += loss.item() * data.size(0)
     for epoch in range(epochs):
 
         model.train()
+        train_loss = 0
 
         for data, target in train_loader:
             data = data.to(device)
@@ -474,7 +505,8 @@ def train_and_save(data_path, context_length, horizon, save_path, top_k=2, norm=
                 # -------------------------
                 mean = data.mean(dim=1, keepdim=True)     
                 std = data.std(dim=1, keepdim=True)       
-                data_norm = (data - mean) / (std + 1e-8)  
+                data_norm = (data - mean) / (std + 1e-8)
+                target_norm = (target - mean) / (std + 1e-8)
             
             else:
                 # -------------------------
@@ -483,15 +515,11 @@ def train_and_save(data_path, context_length, horizon, save_path, top_k=2, norm=
                 data_min = data.min(dim=1, keepdim=True).values
                 data_max = data.max(dim=1, keepdim=True).values
                 data_norm = (data - data_min) / (data_max - data_min + 1e-8)
+                target_norm = (target - data_min) / (data_max - data_min + 1e-8)
 
-            preds_norm = model(data_norm, context_length=context_length, horizon=horizon, top_k=top_k)
+            preds_norm = model(data_norm, context_length=context_length, horizon=horizon, dir_csv_experts=csv_experts, top_k=top_k)
             
-            if norm == "std":
-                preds = preds_norm * (std + 1e-8) + mean
-            else:
-                preds = preds_norm * (data_max - data_min + 1e-8) + data_min
-
-            loss = loss_fn(preds, target)
+            loss = loss_fn(preds_norm, target_norm)
 
             opt.zero_grad()
             loss.backward()
@@ -501,11 +529,16 @@ def train_and_save(data_path, context_length, horizon, save_path, top_k=2, norm=
         
         train_loss /= len(train_loader.dataset)
 
-        print(f'Epoch {epoch+1}, Train Loss: {train_loss:.4f}')
+        print(f"Epoch [{epoch+1}/{epochs}] | Train Loss: {train_loss:.6f}")
 
-        logging.info("-----------------------------------------------")
-        logging.info(f"Epoch {epoch+1}/{epochs} | Train Loss: {train_loss:.4f}")
-        logging.info("-----------------------------------------------")
+        # Save Epoch | Train Loss
+        csv_loss = log_dir / "train_loss.csv"
+        append_train_loss(
+            csv_loss,
+            epoch=epoch + 1,
+            train_loss=train_loss
+        )
+
 
         early_stopping(train_loss, model)
 
@@ -547,6 +580,8 @@ def predict_from_model(model_path, series, context_length, horizon, top_k, devic
     #     - `top_k:` number of experts to pick per sample.
     #     Output: 2D tensor with predictions (ex: torch.Size([1, horizon]) or [batch, horizon])
     # =============================================================================
+    log_dir = get_log_dir_from_save_path(model_path)
+    csv_experts = log_dir / "experts_weights_pred.csv"
 
     model = MoERouter.load(model_path, context_length=context_length, device=device)
 
@@ -561,7 +596,7 @@ def predict_from_model(model_path, series, context_length, horizon, top_k, devic
             raise ValueError("Series too short for the requested context")
         x = series[-context_length:].unsqueeze(0)  # (1, context_length)
         with torch.no_grad():
-            out = model(x=x, context_length=context_length, horizon=horizon, top_k=top_k, verbose=verbose)
+            out = model(x=x, context_length=context_length, horizon=horizon, dir_csv_experts=csv_experts, top_k=top_k, verbose=verbose)
         return out.cpu()  # (1, horizon)
 
     # Case 2D

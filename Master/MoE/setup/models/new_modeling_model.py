@@ -486,30 +486,16 @@ def train_and_save(data_path, context_length, horizon, save_path, top_k=2, norm=
         for data, target in train_loader:
             data = data.to(device)
             target = target.to(device)
-
-            if norm == "std":
-                # -------------------------
-                # Standard Scaler
-                # -------------------------
-                mean = data.mean(dim=1, keepdim=True)     
-                std = data.std(dim=1, keepdim=True)       
-                data_norm = (data - mean) / (std + 1e-8)  
+            # -------------------------
+            # Standard Scaler
+            # -------------------------
+            mean = data.mean(dim=1, keepdim=True)     
+            std = data.std(dim=1, keepdim=True)       
+            data_norm = (data - mean) / (std + 1e-8)  
             
-            else:
-                # -------------------------
-                # Min-Max
-                # -------------------------
-                data_min = data.min(dim=1, keepdim=True).values
-                data_max = data.max(dim=1, keepdim=True).values
-                data_norm = (data - data_min) / (data_max - data_min + 1e-8)
-
             preds_norm = model(data_norm, context_length=context_length, horizon=horizon, top_k=top_k)
             
-            if norm == "std":
-                preds = preds_norm * (std + 1e-8) + mean
-            else:
-                preds = preds_norm * (data_max - data_min + 1e-8) + data_min
-
+            preds = preds_norm * (std + 1e-8) + mean
             loss = loss_fn(preds, target)
 
             opt.zero_grad()

@@ -185,9 +185,7 @@ def process_dataset(state_code, year, context_length, prediction_length):
             device=device
         )
         output_mymoe = out.to(device) * std_vals + mean_vals
-        if (output_mymoe < 0).any():
-            output_mymoe = torch.zeros_like(output_mymoe)
-            
+       
     times_dict["My-MoE"] = round(time.time() - start, 4)
 
     model_outputs = {
