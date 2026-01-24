@@ -36,6 +36,7 @@ base_path = "../all_datasets_global_by_years"
 
 top_k = 2
 device = 'cuda'
+use_noise = True
 
 # ===============================
 # CONTEXT FUNCTION (DYNAMIC)
@@ -182,6 +183,7 @@ def process_dataset(state_code, year, context_length, prediction_length):
             horizon=prediction_length,
             context_length=context_length,
             top_k=top_k,
+            use_noise=use_noise,
             device=device
         )
         output_mymoe = out.to(device) * std_vals + mean_vals

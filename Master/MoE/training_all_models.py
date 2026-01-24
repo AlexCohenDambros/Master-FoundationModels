@@ -27,6 +27,7 @@ MIN_YEAR = 2020
 top_k = 2
 norm = "std"
 device = "cpu"
+use_noise = True
 
 trained_models_root = "trained_models"
 os.makedirs(trained_models_root, exist_ok=True)
@@ -144,6 +145,7 @@ for HORIZON in HORIZONS:
                 "--context_length", str(context_length),
                 "--horizon", str(HORIZON),
                 "--top_k", str(top_k),
+                "--use_noise", use_noise,
                 "--norm", norm,
                 "--save_path", save_model_path,
                 "--device", device

@@ -8,12 +8,12 @@ from torch.utils.data import Dataset, DataLoader
 import random
 
 from setup.experts.moirai_expert import MoiraiExpert
-from setup.experts.moiraimoe_expert import MoiraiMoEExpert
 from setup.experts.timemoe_expert import TimeMoEExpert
 from setup.experts.timesfm_expert import TimesFMExpert
 from setup.experts.timer_expert import TimerExpert
 from setup.experts.chronos_expert import ChronosExpert
-from setup.logging_train import get_log_dir_from_save_path, append_experts_weights, append_train_loss
+from setup.utils.logging_train import get_log_dir_from_save_path, append_experts_weights, append_train_loss
+from setup.utils.custom_loss_function import moe_custom_loss
 
 os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
 os.environ["TRANSFORMERS_VERBOSITY"] = "error"
@@ -21,7 +21,6 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 EXPERT_CLASS_MAP = {
     "Moirai": MoiraiExpert,
-    # "Moirai-MoE": MoiraiMoEExpert,
     "Time-MoE": TimeMoEExpert,
     "TimesFM": TimesFMExpert,
     "Timer": TimerExpert,
@@ -151,17 +150,37 @@ class MoERouter(nn.Module):
         # EN: Move parameters/architecture to the desired device
         self.to(device)
 
-    def forward(self, x: torch.Tensor, context_length: int, horizon: int, dir_csv_experts:str, top_k: int = 2, verbose: bool = False):
+    def forward(self, x: torch.Tensor, context_length: int, horizon: int, dir_csv_experts:str, top_k: int = 2, use_noise: bool = False, verbose: bool = False):
         """
         PT:
-        - x: tensor (batch_size, context_length) contendo o contexto por amostra.
-        - top_k: número de experts a selecionar por amostra.
-        Retorna: tensor (batch_size, horizon) com predições combinadas.
+        - x: tensor (batch_size, context_length) contendo o contexto temporal por amostra.
+        - context_length: tamanho da janela de contexto utilizada como entrada do modelo.
+        - horizon: horizonte de previsão (número de passos futuros a serem previstos).
+        - dir_csv_experts: caminho para o diretório contendo os arquivos CSV com as
+        predições ou metadados dos experts.
+        - top_k: número de experts selecionados pelo roteador para cada amostra.
+        - use_noise: se True, adiciona ruído (ex: Gumbel ou Gaussiano) às pontuações do
+        roteador para incentivar exploração.
+        - verbose: se True, imprime logs detalhados durante o forward (ex: experts
+        selecionados, pesos e shapes intermediários).
+
+        Retorna:
+        - Tensor (batch_size, horizon) com as predições combinadas dos experts selecionados.
 
         EN:
-        - x: tensor (batch_size, context_length) with context per sample.
-        - top_k: number of experts to pick per sample.
-        Returns: (batch_size, horizon) combined predictions.
+        - x: tensor (batch_size, context_length) containing the temporal context per sample.
+        - context_length: length of the input context window.
+        - horizon: forecasting horizon (number of future time steps to predict).
+        - dir_csv_experts: path to the directory containing CSV files with experts'
+        predictions or metadata.
+        - top_k: number of experts selected by the router per sample.
+        - use_noise: if True, adds noise (e.g., Gumbel or Gaussian) to router scores
+        to encourage exploration.
+        - verbose: if True, prints detailed logs during the forward pass (e.g., selected
+        experts, routing weights, intermediate tensor shapes).
+
+        Returns:
+        - Tensor (batch_size, horizon) with the combined predictions from the selected experts.
         """
 
         # PT: move o input para o device do modelo (pode já estar no mesmo device; .to faz nada nesse caso)
@@ -171,22 +190,28 @@ class MoERouter(nn.Module):
         # computa logits (batch_size, E) e probs softmax (batch_size, E)
         logits = self.gating(x_device)                # raw scores do roteador / router raw scores
 
+        probs_clean = F.softmax(logits, dim=-1)
+
         # Add noise only during training
-        if self.training:
+        if use_noise and self.training:
             noise = self.noise_linear(x_device)
             noise_std = F.softplus(noise)
-            noisy_logits = logits + (torch.randn_like(logits) * noise_std)
+            final_logits = logits + (torch.randn_like(logits) * noise_std)
         else:
-            noisy_logits = logits
+            final_logits = logits
         
-        probs = F.softmax(noisy_logits, dim=-1)  
-        topk_vals, topk_idx = torch.topk(probs, k=top_k, dim=-1)
+        top_k_logits, topk_idx  = torch.topk(final_logits, k=top_k, dim=-1)
+
+        # Create a sparse routing mask
+        zeros = torch.full_like(final_logits, float('-inf'))
+        sparse_logits = zeros.scatter(-1, topk_idx , top_k_logits)
+        probs  = F.softmax(sparse_logits, dim=-1)
 
         # >>>>>>> LOG <<<<<<<
         # Show selected experts and their weights for each sample
-        for i in range(topk_idx.size(0)):
-            learners = [self.expert_keys[idx.item()] for idx in topk_idx[i]]
-            weights = topk_vals[i].detach().cpu().numpy()
+        for i in range(topk_idx .size(0)):
+            learners = [self.expert_keys[idx.item()] for idx in topk_idx [i]]
+            weights = top_k_logits[i].detach().cpu().numpy()
 
             append_experts_weights(
                 dir_csv_experts,
@@ -220,7 +245,7 @@ class MoERouter(nn.Module):
         # PT: Para cada expert, coletamos as amostras do batch que o incluíram no top-k; chamamos o expert **uma vez** com o sub-batch (vetorizado) — evita chamar expert N vezes.
         # EN: For each expert, we collect the samples from the batch that included it in the top-k; we call the expert **once** with the (vectorized) sub-batch — avoid calling expert N times.
         for expert_idx in range(self.num_experts):
-            mask = (topk_idx == expert_idx).any(dim=1)
+            mask = (topk_idx  == expert_idx).any(dim=1)
             idxs = torch.nonzero(mask, as_tuple=False).squeeze(1)
             if idxs.numel() == 0:
                 continue
@@ -245,7 +270,7 @@ class MoERouter(nn.Module):
         #  - if top_k == 1: hard routing (use only the highest-weight expert)
         #  - if top_k > 1: weighted average of predictions
         for i in range(batch_size):
-            idxs = topk_idx[i]
+            idxs = topk_idx [i]
 
             if top_k == 1:
                 weight = probs[i, idxs]                   
@@ -278,7 +303,10 @@ class MoERouter(nn.Module):
 
                 print(f"Sample: Selected -> {selected_str}; Not selected -> {not_selected_str}")
 
-        return final_preds
+        if use_noise:
+            return final_preds, probs_clean, topk_idx
+        else:
+            return final_preds, None, None
 
     def save(self, path):
         """
@@ -379,7 +407,7 @@ def load_jsonl(path):
 # Train and Save Model
 # ------------------
 def train_and_save(data_path, context_length, horizon, save_path, top_k=2, norm="minmax", device="cpu",
-                   batch_size=32, epochs=20, lr=1e-4, seed=0, detect_anomaly=False):
+                   batch_size=32, epochs=20, lr=1e-4, seed=0, use_noise=True, detect_anomaly=False):
     # =============================================================================
     # PT: Treina apenas o roteador (gating) do modelo MoERouter usando uma base de 
     #     séries temporais e salva o modelo treinado. Os experts permanecem 
@@ -397,6 +425,7 @@ def train_and_save(data_path, context_length, horizon, save_path, top_k=2, norm=
     #     - `epochs`: número de épocas de treinamento
     #     - `lr`: taxa de aprendizado do otimizador
     #     - `seed`: semente aleatória para reprodutibilidade
+    #     - `use_noise`: Se definido como True, aplicará ruído durante o treinamento do modelo.
     #     - `detect_anomaly`: ativa debug de gradientes (mais lento, útil para depuração)
     #
     #     Saída: modelo MoERouter treinado (instância do objeto)
@@ -417,6 +446,7 @@ def train_and_save(data_path, context_length, horizon, save_path, top_k=2, norm=
     #     - `epochs`: number of training epochs
     #     - `lr`: learning rate for the optimizer
     #     - `seed`: random seed for reproducibility
+    #     - `use_noise`: If set to True, it will apply noise during model training.
     #     - `detect_anomaly`: enables gradient anomaly detection (slower, debug only)
     #
     #     Output: trained MoERouter model (object instance)
@@ -451,45 +481,6 @@ def train_and_save(data_path, context_length, horizon, save_path, top_k=2, norm=
 
     early_stopping = EarlyStopping(patience=3)
 
-    # for epoch in range(epochs):
-
-    #     model.train()
-    #     train_loss = 0
-
-    #     for data, target in train_loader:
-    #         data = data.to(device)
-    #         target = target.to(device)
-
-    #         if norm == "std":
-    #             # -------------------------
-    #             # Standard Scaler
-    #             # -------------------------
-    #             mean = data.mean(dim=1, keepdim=True)     
-    #             std = data.std(dim=1, keepdim=True)       
-    #             data_norm = (data - mean) / (std + 1e-8)  
-            
-    #         else:
-    #             # -------------------------
-    #             # Min-Max
-    #             # -------------------------
-    #             data_min = data.min(dim=1, keepdim=True).values
-    #             data_max = data.max(dim=1, keepdim=True).values
-    #             data_norm = (data - data_min) / (data_max - data_min + 1e-8)
-
-    #         preds_norm = model(data_norm, context_length=context_length, horizon=horizon, top_k=top_k)
-            
-    #         if norm == "std":
-    #             preds = preds_norm * (std + 1e-8) + mean
-    #         else:
-    #             preds = preds_norm * (data_max - data_min + 1e-8) + data_min
-
-    #         loss = loss_fn(preds, target)
-
-    #         opt.zero_grad()
-    #         loss.backward()
-    #         opt.step()
-
-    #         train_loss += loss.item() * data.size(0)
     for epoch in range(epochs):
 
         model.train()
@@ -517,10 +508,33 @@ def train_and_save(data_path, context_length, horizon, save_path, top_k=2, norm=
                 data_norm = (data - data_min) / (data_max - data_min + 1e-8)
                 target_norm = (target - data_min) / (data_max - data_min + 1e-8)
 
-            preds_norm = model(data_norm, context_length=context_length, horizon=horizon, dir_csv_experts=csv_experts, top_k=top_k)
+            # -------------------------------------------------
+            # Forward
+            # -------------------------------------------------
+            output = model(data_norm, context_length=context_length, horizon=horizon, dir_csv_experts=csv_experts, use_noise=use_noise, top_k=top_k)
             
-            loss = loss_fn(preds_norm, target_norm)
+            # -------------------------------------------------
+            # Loss
+            # -------------------------------------------------
+            if use_noise:
+                # preds, probs_clean, topk_idx
+                preds_norm, probs_clean, topk_idx = output
 
+                loss = moe_custom_loss(
+                    preds=preds_norm,
+                    targets=target_norm,
+                    probs_clean=probs_clean,
+                    topk_idx=topk_idx,
+                    pred_loss_fn=loss_fn,
+                    alpha=0.02, 
+                )
+            else:
+                preds_norm = output
+                loss = loss_fn(preds_norm, target_norm)
+
+            # -------------------------------------------------
+            # Backprop
+            # -------------------------------------------------
             opt.zero_grad()
             loss.backward()
             opt.step()
@@ -558,7 +572,7 @@ def train_and_save(data_path, context_length, horizon, save_path, top_k=2, norm=
 # -------------------
 # Predict model
 # ------------------
-def predict_from_model(model_path, series, context_length, horizon, top_k, device="cpu", verbose=True):
+def predict_from_model(model_path, series, context_length, horizon, top_k, use_noise=True, device="cpu", verbose=True):
     # =============================================================================
     # PT: Carrega um modelo salvo do tipo MoERouter e realiza a previsão para uma
     #     ou várias séries temporais fornecidas. A série é cortada para o tamanho
@@ -568,6 +582,7 @@ def predict_from_model(model_path, series, context_length, horizon, top_k, devic
     #     - `context_length`: número de pontos usados como contexto (ex: 5)
     #     - `horizon`: número de passos a serem previstos (ex: 2)
     #     - `top_k:` Número de especialistas a serem selecionados por amostra.
+    #     - `use_noise`: Se definido como True, aplicará ruído durante o treinamento do modelo.
     #     Saída: tensor 2D com previsões (ex: torch.Size([1, horizon]) ou [batch, horizon])
     #
     # EN: Loads a saved MoERouter model and performs prediction for one or more
@@ -578,6 +593,7 @@ def predict_from_model(model_path, series, context_length, horizon, top_k, devic
     #     - `context_length`: number of points used as context (e.g., 5)
     #     - `horizon`: number of steps to forecast (e.g., 2)
     #     - `top_k:` number of experts to pick per sample.
+    #     - `use_noise`: If set to True, it will apply noise during model training.
     #     Output: 2D tensor with predictions (ex: torch.Size([1, horizon]) or [batch, horizon])
     # =============================================================================
     log_dir = get_log_dir_from_save_path(model_path)
@@ -596,7 +612,7 @@ def predict_from_model(model_path, series, context_length, horizon, top_k, devic
             raise ValueError("Series too short for the requested context")
         x = series[-context_length:].unsqueeze(0)  # (1, context_length)
         with torch.no_grad():
-            out = model(x=x, context_length=context_length, horizon=horizon, dir_csv_experts=csv_experts, top_k=top_k, verbose=verbose)
+            out = model(x=x, context_length=context_length, horizon=horizon, dir_csv_experts=csv_experts, top_k=top_k, use_noise=use_noise, verbose=verbose)
         return out.cpu()  # (1, horizon)
 
     # Case 2D
@@ -607,7 +623,7 @@ def predict_from_model(model_path, series, context_length, horizon, top_k, devic
                 raise ValueError("One of the series is too short for the requested context")
             x = row[-context_length:].unsqueeze(0)  # (1, context_length)
             with torch.no_grad():
-                out = model(x=x, context_length=context_length, horizon=horizon, top_k=top_k, verbose=verbose)
+                out = model(x=x, context_length=context_length, horizon=horizon, dir_csv_experts=csv_experts, top_k=top_k, use_noise=use_noise, verbose=verbose)
             outs.append(out.cpu())
         return torch.cat(outs, dim=0)  # (batch, horizon)
 

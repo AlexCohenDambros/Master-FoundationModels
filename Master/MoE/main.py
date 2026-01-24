@@ -9,6 +9,7 @@ def main():
     parser.add_argument("--context_length", type=int, default=168)
     parser.add_argument("--horizon", type=int, default=24)
     parser.add_argument("--top_k", type=int, default=1)
+    parser.add_argument("--use_noise", type=bool, default=True)
     parser.add_argument("--norm", type=str, default="std")
     parser.add_argument("--save_path", type=str, default="moe_model.pt")
     parser.add_argument("--device", type=str, default="cpu")
@@ -17,12 +18,12 @@ def main():
     if args.mode == "train":
         if not args.data:
             raise ValueError("Precisa fornecer --data no modo train")
-        train_and_save(args.data, args.context_length, args.horizon, args.save_path, top_k=args.top_k, device=args.device)
+        train_and_save(args.data, args.context_length, args.horizon, args.save_path, top_k=args.top_k, use_noise=args.use_noise, device=args.device)
 
     elif args.mode == "predict":
         if not args.series:
             raise ValueError("Precisa fornecer --series no modo predict")
-        preds = predict_from_model(args.save_path, args.series, args.context_length, top_k=args.top_k, device=args.device)
+        preds = predict_from_model(args.save_path, args.series, args.context_length, top_k=args.top_k, use_noise=args.use_noise, device=args.device)
         print(preds.tolist())
 
 
