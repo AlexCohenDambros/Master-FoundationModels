@@ -531,7 +531,7 @@ def train_and_save(data_path, context_length, horizon, save_path, use_noise, top
                     alpha=0.02, 
                 )
             else:
-                preds_norm = output
+                preds_norm = output[0]
                 loss = loss_fn(preds_norm, target_norm)
 
             # -------------------------------------------------

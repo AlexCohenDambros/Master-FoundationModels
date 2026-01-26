@@ -429,8 +429,8 @@ def load_jsonl(path):
 # -------------------
 # Train and Save Model
 # ------------------
-def train_and_save(data_path, context_length, horizon, save_path, top_k=2, norm="minmax", device="cpu",
-                   batch_size=32, epochs=20, lr=1e-4, seed=0, use_noise=True, detect_anomaly=False):
+def train_and_save(data_path, context_length, horizon, save_path, use_noise, top_k=2, norm="minmax", device="cpu",
+                   batch_size=32, epochs=20, lr=1e-4, seed=0, detect_anomaly=False):
     # =============================================================================
     # PT: Treina apenas o roteador (gating) do modelo MoERouter usando uma base de 
     #     séries temporais e salva o modelo treinado. Os experts permanecem 
@@ -480,6 +480,8 @@ def train_and_save(data_path, context_length, horizon, save_path, top_k=2, norm=
     #===============================================
     log_dir = get_log_dir_from_save_path(save_path)
     csv_experts = log_dir / "experts_weights_train.csv"
+
+    use_noise = True if use_noise=="true" else False
 
     if detect_anomaly:
         torch.autograd.set_detect_anomaly(True)
@@ -552,7 +554,7 @@ def train_and_save(data_path, context_length, horizon, save_path, top_k=2, norm=
                     alpha=0.02, 
                 )
             else:
-                preds_norm = output
+                preds_norm = output[0]
                 loss = loss_fn(preds_norm, target_norm)
 
             # -------------------------------------------------
@@ -595,7 +597,7 @@ def train_and_save(data_path, context_length, horizon, save_path, top_k=2, norm=
 # -------------------
 # Predict model
 # ------------------
-def predict_from_model(model_path, series, context_length, horizon, top_k, use_noise=True, device="cpu", verbose=True):
+def predict_from_model(model_path, series, context_length, horizon, top_k, use_noise, device="cpu", verbose=True):
     # =============================================================================
     # PT: Carrega um modelo salvo do tipo MoERouter e realiza a previsão para uma
     #     ou várias séries temporais fornecidas. A série é cortada para o tamanho
@@ -626,6 +628,9 @@ def predict_from_model(model_path, series, context_length, horizon, top_k, use_n
 
     series = torch.as_tensor(series, dtype=torch.float32)
 
+    use_noise = True if use_noise=="true" else False
+
+
     if not isinstance(horizon, int) or horizon < 1:
         raise ValueError("`horizon` must be an int >= 1.")
 
@@ -652,3 +657,4 @@ def predict_from_model(model_path, series, context_length, horizon, top_k, use_n
 
     else:
         raise ValueError(f"`series` must be 1D or 2D, but got shape {tuple(series.shape)}")
+
