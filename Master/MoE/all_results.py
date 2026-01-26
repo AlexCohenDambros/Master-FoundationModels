@@ -183,7 +183,7 @@ def process_dataset(state_code, year, context_length, prediction_length):
             horizon=prediction_length,
             context_length=context_length,
             top_k=top_k,
-            use_noise=use_noise,
+            use_noise="true" if use_noise else "false",
             device=device
         )
         output_mymoe = out.to(device) * std_vals + mean_vals

@@ -13,7 +13,7 @@ os.environ["NCCL_P2P_DISABLE"] = "1"
 os.environ["NCCL_IB_DISABLE"] = "1"
 
 # N_CORES = 5
-N_CORES = 10
+N_CORES = 1
 
 base_path = "../all_datasets_global_by_years"
 HORIZONS = [3, 6, 12, 24]
@@ -145,7 +145,7 @@ for HORIZON in HORIZONS:
                 "--context_length", str(context_length),
                 "--horizon", str(HORIZON),
                 "--top_k", str(top_k),
-                "--use_noise", use_noise,
+                "--use_noise", "true" if use_noise else "false",
                 "--norm", norm,
                 "--save_path", save_model_path,
                 "--device", device
