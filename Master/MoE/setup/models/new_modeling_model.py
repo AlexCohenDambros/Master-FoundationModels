@@ -234,7 +234,7 @@ class MoERouter(nn.Module):
         # Show selected experts and their weights for each sample
         for i in range(topk_idx .size(0)):
             learners = [self.expert_keys[idx.item()] for idx in topk_idx [i]]
-            weights = top_k_logits[i].detach().cpu().numpy()
+            weights = probs[i, topk_idx[i]].detach().cpu().numpy()
 
             append_experts_weights(
                 dir_csv_experts,
@@ -293,18 +293,16 @@ class MoERouter(nn.Module):
         #  - if top_k == 1: hard routing (use only the highest-weight expert)
         #  - if top_k > 1: weighted average of predictions
         for i in range(batch_size):
-            idxs = topk_idx [i]
+            idxs = topk_idx[i]
 
             if top_k == 1:
-                weight = probs[i, idxs]                   
-                pred = preds_by_expert[idxs, i, :].squeeze(0)
-                final_preds[i] = pred * (1.0 + (weight - weight.detach()))
+                expert_idx = idxs[0]
+                final_preds[i] = preds_by_expert[expert_idx, i, :]
 
             else:
-                weights = probs[i, idxs]
-                chosen_preds = preds_by_expert[idxs, i, :]
-                combined = (weights.unsqueeze(-1) * chosen_preds).sum(dim=0)
-                final_preds[i] = combined
+                weights = probs[i, idxs]                    # (k,)
+                chosen_preds = preds_by_expert[idxs, i, :] # (k, horizon)
+                final_preds[i] = (weights.unsqueeze(-1) * chosen_preds).sum(dim=0)
 
             # Printing which models were selected on the router
             if verbose:
@@ -429,7 +427,7 @@ def load_jsonl(path):
 # -------------------
 # Train and Save Model
 # ------------------
-def train_and_save(data_path, context_length, horizon, save_path, use_noise, top_k=2, norm="minmax", device="cpu",
+def train_and_save(data_path, context_length, horizon, save_path, use_noise, top_k=2, norm="std", device="cpu",
                    batch_size=32, epochs=20, lr=1e-4, seed=0, detect_anomaly=False):
     # =============================================================================
     # PT: Treina apenas o roteador (gating) do modelo MoERouter usando uma base de 

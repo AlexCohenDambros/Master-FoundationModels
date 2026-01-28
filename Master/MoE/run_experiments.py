@@ -1,62 +1,77 @@
+# ======================================
+# PARALLEL CONFIGURATION
+# ======================================
+from joblib import Parallel, delayed
+
+# ======================================
+# IMPORTS
+# ======================================
 import os
 import json
+import time
 import torch
 import pandas as pd
-import time
+
 from transformers import AutoModelForCausalLM
 from chronos import BaseChronosPipeline
 import timesfm
+
 from uni2ts.model.moirai import MoiraiForecast, MoiraiModule
 from setup.models.modeling_model import predict_from_model
+
 from sklearn.metrics import mean_absolute_percentage_error
 from analysis_trained_models import run_analysis
 
+# ======================================
+# ENVIRONMENT CONFIGURATION
+# ======================================
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+os.environ["WANDB_MODE"] = "disabled"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["NCCL_P2P_DISABLE"] = "1"
+os.environ["NCCL_IB_DISABLE"] = "1"
 
 # ======================================
-# MAIN PIPELINE FUNCTION
+# GENERAL SETTINGS
 # ======================================
+file_path = "../dataset_global/dataset_global.jsonl"
 
+HORIZONS = [3, 6, 12, 24]
+YEARS = [2024, 2023, 2022, 2021, 2020]
+
+BASE_CONTEXT = 410
+
+base_path = "../all_datasets_global_by_years"
+results_root = "results_by_state_year"
+times_root = "times_by_state_year"
+
+# ======================================
+# MAIN PIPELINE
+# ======================================
 def run_full_experiment_pipeline():
 
-    # ======================================
-    # GENERAL CONFIGURATION
-    # ======================================
-    os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
-    os.environ["WANDB_MODE"] = "disabled"
-    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-    os.environ["NCCL_P2P_DISABLE"] = "1"
-    os.environ["NCCL_IB_DISABLE"] = "1"
+    device = "cuda"
 
-    file_path = "../dataset_global/dataset_global.jsonl"
-
-    HORIZONS = [3, 6, 12, 24]
-    YEARS = [2024, 2023, 2022, 2021, 2020]
-
-    BASE_CONTEXT = 410
-
-    results_root = "results_by_state_year"
-    times_root = "times_by_state_year"
+    N_CORES = 5
 
     os.makedirs(results_root, exist_ok=True)
     os.makedirs(times_root, exist_ok=True)
 
-    base_path = "../all_datasets_global_by_years"
-
     top_k = 2
-    device = "cuda"
     use_noise = True
     analysis_trained_log = True
 
-    # ===============================
-    # CONTEXT FUNCTION
-    # ===============================
+    # ======================================
+    # CONTEXT LENGTH FUNCTION
+    # ======================================
     def get_context_length(year, horizon):
         return BASE_CONTEXT - horizon - ((2024 - year) * horizon)
 
-    # ===============================
-    # DATASET PROCESS FUNCTION
-    # ===============================
+    # ======================================
+    # DATASET PROCESSING FUNCTION
+    # ======================================
     def process_dataset(state_code, year, context_length, prediction_length):
+
         train_list, test_list, product_names = [], [], []
 
         with open(file_path, "r") as f:
@@ -76,40 +91,61 @@ def run_full_experiment_pipeline():
             print(f"No valid sequences for state={state_code}, year={year}")
             return None, None
 
-        tensor_train = torch.tensor(train_list, dtype=torch.float32, device=device)
-        tensor_test = torch.tensor(test_list, dtype=torch.float32, device=device)
+        tensor_train = torch.tensor(
+            train_list, dtype=torch.float32, device=device
+        )
+        tensor_test = torch.tensor(
+            test_list, dtype=torch.float32, device=device
+        )
 
         mean_vals = tensor_train.mean(dim=1, keepdim=True)
         std_vals = tensor_train.std(dim=1, keepdim=True)
         std_vals[std_vals == 0] = 1e-8
-        tensor_train_scaled = (tensor_train - mean_vals) / std_vals
 
-        times_dict = {}
+        tensor_train_scaled = (tensor_train - mean_vals) / std_vals
         tensor_train_scaled = tensor_train_scaled.to(device)
 
-        # -------- Time-MoE --------
+        times_dict = {}
+
+        # ----------------------------------
+        # Time-MoE
+        # ----------------------------------
         start = time.time()
         model = AutoModelForCausalLM.from_pretrained(
-            "Maple728/TimeMoE-200M", trust_remote_code=True, device_map=device
+            "Maple728/TimeMoE-200M",
+            trust_remote_code=True,
+            device_map=device,
         )
-        out = model.generate(tensor_train_scaled, max_new_tokens=prediction_length)
+        out = model.generate(
+            tensor_train_scaled,
+            max_new_tokens=prediction_length,
+        )
         out = out[:, -prediction_length:]
         output_time_moe = out * std_vals + mean_vals
         times_dict["Time-MoE"] = round(time.time() - start, 4)
 
-        # -------- Timer --------
+        # ----------------------------------
+        # Timer
+        # ----------------------------------
         tensor_train_scaled = tensor_train_scaled.squeeze(-1)
 
         start = time.time()
         model = AutoModelForCausalLM.from_pretrained(
-            "thuml/sundial-base-128m", trust_remote_code=True, device_map=device
+            "thuml/sundial-base-128m",
+            trust_remote_code=True,
+            device_map=device,
         )
-        out = model.generate(tensor_train_scaled, max_new_tokens=prediction_length)
+        out = model.generate(
+            tensor_train_scaled,
+            max_new_tokens=prediction_length,
+        )
         out = torch.as_tensor(out.squeeze(1))
         output_timer = out * std_vals + mean_vals
         times_dict["Timer"] = round(time.time() - start, 4)
 
-        # -------- TimesFM --------
+        # ----------------------------------
+        # TimesFM
+        # ----------------------------------
         start = time.time()
         model = timesfm.TimesFm(
             hparams=timesfm.TimesFmHparams(
@@ -124,16 +160,62 @@ def run_full_experiment_pipeline():
                 huggingface_repo_id="google/timesfm-2.0-500m-pytorch"
             ),
         )
+
         with torch.no_grad():
-            out, _ = model.forecast(tensor_train_scaled.cpu().numpy())
-        output_timesfm = torch.from_numpy(out).float().to(device) * std_vals + mean_vals
+            out, _ = model.forecast(
+                tensor_train_scaled.cpu().numpy()
+            )
+
+        output_timesfm = (
+            torch.from_numpy(out).float().to(device)
+            * std_vals
+            + mean_vals
+        )
+
         times_dict["TimesFM"] = round(time.time() - start, 4)
 
-        # -------- My-MoE --------
+        # -------- Moirai Small --------
         start = time.time()
+        model = MoiraiForecast(
+            module=MoiraiModule.from_pretrained("Salesforce/moirai-1.1-R-small"),
+            prediction_length=prediction_length,
+            context_length=context_length,
+            patch_size=16,
+            num_samples=100,
+            target_dim=1,
+            feat_dynamic_real_dim=0,
+            past_feat_dynamic_real_dim=0,
+        )
+        model.to(device)
+        outs = []
+        for i in range(tensor_train_scaled.size(0)):
+            past = tensor_train_scaled[i].unsqueeze(0).unsqueeze(-1)
+            obs = torch.ones_like(past, dtype=torch.bool)
+            pad = torch.zeros_like(past, dtype=torch.bool).squeeze(-1)
+            fc = model(past_target=past, past_observed_target=obs, past_is_pad=pad)
+            outs.append(torch.as_tensor(fc.mean(dim=1)).reshape(1, -1))
+        output_moirai_small = torch.cat(outs) * std_vals + mean_vals
+        times_dict["Moirai-Small"] = round(time.time() - start, 4)
+
+        # -------- Chronos-Bolt-Small --------
+        start = time.time()
+        model = BaseChronosPipeline.from_pretrained("amazon/chronos-bolt-small", device_map=device, torch_dtype=torch.bfloat16)
+        _, out = model.predict_quantiles(
+            context=tensor_train_scaled, prediction_length=prediction_length
+        )
+        output_chronos_bolt_small = out.to(device) * std_vals + mean_vals
+        times_dict["Chronos-Bolt-Small"] = round(time.time() - start, 4)
+
+
+        # ----------------------------------
+        # My-MoE
+        # ----------------------------------
+        start = time.time()
+
         model_path = (
             f"trained_models/horizon_{prediction_length}/"
-            f"excluding_{state_code}/model_excluding_{state_code}_{year}.pt"
+            f"excluding_{state_code}/"
+            f"model_excluding_{state_code}_{year}.pt"
         )
 
         if os.path.exists(model_path):
@@ -152,78 +234,144 @@ def run_full_experiment_pipeline():
 
         times_dict["My-MoE"] = round(time.time() - start, 4)
 
+
+        # ----------------------------------
+        # METRICS
+        # ----------------------------------
         model_outputs = {
             "Time-MoE": output_time_moe,
-            "TimesFM": output_timesfm,
             "Timer": output_timer,
+            "TimesFM": output_timesfm,
+            "Morai": output_moirai_small,
+            "Chronos": output_chronos_bolt_small,
             "My-MoE": output_mymoe,
         }
 
         results = {}
+
         for name, preds in model_outputs.items():
             preds = torch.clamp(preds, min=0)
             mape_list = []
+
             for i in range(preds.shape[0]):
-                mape = mean_absolute_percentage_error(
-                    tensor_test[i].cpu().numpy(),
-                    preds[i].cpu().numpy(),
-                ) * 100
+                mape = (
+                    mean_absolute_percentage_error(
+                        tensor_test[i].cpu().numpy(),
+                        preds[i].cpu().numpy(),
+                    )
+                    * 100
+                )
                 mape_list.append(round(mape, 4))
+
             results[name] = mape_list
 
         df_results = pd.DataFrame(results).T.reset_index()
         df_results.rename(columns={"index": "Modelo"}, inplace=True)
-        df_results.columns = ["Modelo"] + [p.capitalize() for p in product_names]
+        df_results.columns = ["Modelo"] + [
+            p.capitalize() for p in product_names
+        ]
 
         df_times = pd.DataFrame(
-            list(times_dict.items()), columns=["Modelo", "Tempo (s)"]
+            list(times_dict.items()),
+            columns=["Modelo", "Tempo (s)"],
         )
 
         return df_results, df_times
 
-    # ===============================
-    # MAIN LOOP
-    # ===============================
+    # ======================================
+    # PARALLEL WORKER
+    # ======================================
+    def run_single_experiment(
+        state_code,
+        year,
+        horizon,
+        context_length,
+        results_path,
+        times_path,
+    ):
+        print(
+            f"Processing {state_code.upper()} - {year} "
+            f"- Horizon {horizon} - Context {context_length}"
+        )
+
+        df_results, df_times = process_dataset(
+            state_code,
+            year,
+            context_length,
+            horizon,
+        )
+
+        if df_results is None:
+            return None
+
+        return (
+            os.path.join(
+                results_path,
+                f"results_{state_code}_{year}.csv",
+            ),
+            os.path.join(
+                times_path,
+                f"times_{state_code}_{year}.csv",
+            ),
+            df_results,
+            df_times,
+        )
+
+    # ======================================
+    # MAIN LOOP (PARALLEL)
+    # ======================================
     for horizon in HORIZONS:
         print(f"\n===== Horizon {horizon} =====")
 
-        results_path = os.path.join(results_root, f"horizon_{horizon}")
-        times_path = os.path.join(times_root, f"horizon_{horizon}")
+        results_path = os.path.join(
+            results_root, f"horizon_{horizon}"
+        )
+        times_path = os.path.join(
+            times_root, f"horizon_{horizon}"
+        )
 
         os.makedirs(results_path, exist_ok=True)
         os.makedirs(times_path, exist_ok=True)
 
-        horizon_path = os.path.join(base_path, f"horizon_{horizon}")
+        horizon_path = os.path.join(
+            base_path, f"horizon_{horizon}"
+        )
         if not os.path.exists(horizon_path):
             continue
 
+        tasks = []
+
         for excluding_folder in sorted(os.listdir(horizon_path)):
             state_code = excluding_folder.replace("excluding_", "")
-
             for year in YEARS:
                 context_length = get_context_length(year, horizon)
-
-                print(
-                    f"Processing {state_code.upper()} - {year} "
-                    f"- Horizon {horizon} - Context {context_length}"
+                tasks.append(
+                    (
+                        state_code,
+                        year,
+                        horizon,
+                        context_length,
+                        results_path,
+                        times_path,
+                    )
                 )
 
-                df_results, df_times = process_dataset(
-                    state_code, year, context_length, horizon
-                )
+        results = Parallel(
+            n_jobs=N_CORES,
+            backend="loky",
+            verbose=10,
+        )(
+            delayed(run_single_experiment)(*task)
+            for task in tasks
+        )
 
-                if df_results is None:
-                    continue
+        for item in results:
+            if item is None:
+                continue
 
-                df_results.to_csv(
-                    os.path.join(results_path, f"results_{state_code}_{year}.csv"),
-                    index=False,
-                )
-
-                df_times.to_csv(
-                    os.path.join(times_path, f"times_{state_code}_{year}.csv"),
-                    index=False,
-                )
+            results_file, times_file, df_results, df_times = item
+            df_results.to_csv(results_file, index=False)
+            df_times.to_csv(times_file, index=False)
 
     print("\nAll processing completed.")
 
