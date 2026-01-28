@@ -168,8 +168,5 @@ def run_analysis(
     print(f"📁 Resultados salvos em: {output_dir}")
 
 
-# ======================================================
-# Execução direta (opcional)
-# ======================================================
 if __name__ == "__main__":
     run_analysis()

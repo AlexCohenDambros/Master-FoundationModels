@@ -2,6 +2,7 @@ import subprocess
 import os
 import re
 from joblib import Parallel, delayed
+from run_experiments import run_full_experiment_pipeline
     
 # ======================================
 # GENERAL CONFIGURATION
@@ -28,7 +29,7 @@ debug_state = "sp"
 
 top_k = 2
 norm = "std"
-device = "cuda"
+device = "cpu"
 use_noise = True
 
 trained_models_root = "trained_models"
@@ -205,3 +206,5 @@ Parallel(
 )
 
 print("All trainings completed.")
+
+run_full_experiment_pipeline()
