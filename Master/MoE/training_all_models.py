@@ -2,7 +2,7 @@ import subprocess
 import os
 import re
 from joblib import Parallel, delayed
-
+    
 # ======================================
 # GENERAL CONFIGURATION
 # ======================================
@@ -13,7 +13,7 @@ os.environ["NCCL_P2P_DISABLE"] = "1"
 os.environ["NCCL_IB_DISABLE"] = "1"
 
 # N_CORES = 5
-N_CORES = 1
+N_CORES = 5
 
 base_path = "../all_datasets_global_by_years"
 HORIZONS = [3, 6, 12, 24]
@@ -24,9 +24,11 @@ MAX_YEAR = 2024
 MIN_YEAR = 2020
 # MIN_YEAR = 2024
 
+debug_state = "sp"
+
 top_k = 2
 norm = "std"
-device = "cpu"
+device = "cuda"
 use_noise = True
 
 trained_models_root = "trained_models"
@@ -56,6 +58,7 @@ def run_training(
         f"context={context_length} | "
         f"top_k={top_k} | "
         f"norm={norm} | "
+        f"use_noise={use_noise} | "
         f"data={dataset_path} | "
         f"device={device}",
         flush=True
@@ -107,6 +110,10 @@ for HORIZON in HORIZONS:
             continue
 
         excluded_state = excluded_state_folder.replace("excluding_", "")
+
+        if debug_state is not None:
+            if excluded_state != debug_state:
+                continue
 
         horizon_dir = os.path.join(trained_models_root, f"horizon_{HORIZON}")
         state_model_dir = os.path.join(horizon_dir, excluded_state_folder)

@@ -9,6 +9,7 @@ import timesfm
 from uni2ts.model.moirai import MoiraiForecast, MoiraiModule
 from setup.models.modeling_model import predict_from_model
 from sklearn.metrics import mean_absolute_percentage_error
+from analysis_trained_models import run_analysis
 
 # ======================================
 # GENERAL CONFIGURATION
@@ -37,6 +38,7 @@ base_path = "../all_datasets_global_by_years"
 top_k = 2
 device = 'cuda'
 use_noise = True
+analysis_trained_log= True
 
 # ===============================
 # CONTEXT FUNCTION (DYNAMIC)
@@ -284,3 +286,6 @@ for horizon in HORIZONS:
             )
 
 print("\nAll processing completed.")
+
+if analysis_trained_log:
+    run_analysis()

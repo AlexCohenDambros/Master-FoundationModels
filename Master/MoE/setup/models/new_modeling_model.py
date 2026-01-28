@@ -641,7 +641,7 @@ def predict_from_model(model_path, series, context_length, horizon, top_k, use_n
         x = series[-context_length:].unsqueeze(0)  # (1, context_length)
         with torch.no_grad():
             out = model(x=x, context_length=context_length, horizon=horizon, dir_csv_experts=csv_experts, top_k=top_k, use_noise=use_noise, verbose=verbose)
-        return out.cpu()  # (1, horizon)
+        return out[0].cpu()  # (1, horizon)
 
     # Case 2D
     elif series.dim() == 2:
@@ -652,9 +652,8 @@ def predict_from_model(model_path, series, context_length, horizon, top_k, use_n
             x = row[-context_length:].unsqueeze(0)  # (1, context_length)
             with torch.no_grad():
                 out = model(x=x, context_length=context_length, horizon=horizon, dir_csv_experts=csv_experts, top_k=top_k, use_noise=use_noise, verbose=verbose)
-            outs.append(out.cpu())
+            outs.append(out[0].cpu())
         return torch.cat(outs, dim=0)  # (batch, horizon)
 
     else:
         raise ValueError(f"`series` must be 1D or 2D, but got shape {tuple(series.shape)}")
-
