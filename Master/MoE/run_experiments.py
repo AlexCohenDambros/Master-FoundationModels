@@ -48,17 +48,16 @@ times_root = "times_by_state_year"
 # ======================================
 # MAIN PIPELINE
 # ======================================
-def run_full_experiment_pipeline():
+def run_full_experiment_pipeline(path_trained_models: str = "trained_models", top_k:int = 2, use_noise = True):
 
     device = "cuda"
 
     N_CORES = 5
+    debug_state = "sp"  # None 
 
     os.makedirs(results_root, exist_ok=True)
     os.makedirs(times_root, exist_ok=True)
 
-    top_k = 2
-    use_noise = True
     analysis_trained_log = True
 
     # ======================================
@@ -112,22 +111,18 @@ def run_full_experiment_pipeline():
         # ----------------------------------
         start = time.time()
         model = AutoModelForCausalLM.from_pretrained(
-            "Maple728/TimeMoE-200M",
-            trust_remote_code=True,
-            device_map=device,
+            "Maple728/TimeMoE-200M", trust_remote_code=True, device_map=device
         )
-        out = model.generate(
-            tensor_train_scaled,
-            max_new_tokens=prediction_length,
-        )
+        out = model.generate(tensor_train_scaled, max_new_tokens=prediction_length)
         out = out[:, -prediction_length:]
-        output_time_moe = out * std_vals + mean_vals
-        times_dict["Time-MoE"] = round(time.time() - start, 4)
+        output_time_moe_200 = out * std_vals + mean_vals
+        times_dict["Time-MoE200M"] = round(time.time() - start, 4)
 
         # ----------------------------------
         # Timer
         # ----------------------------------
         tensor_train_scaled = tensor_train_scaled.squeeze(-1)
+        tensor_train_scaled = tensor_train_scaled.to(device)
 
         start = time.time()
         model = AutoModelForCausalLM.from_pretrained(
@@ -213,33 +208,29 @@ def run_full_experiment_pipeline():
         start = time.time()
 
         model_path = (
-            f"trained_models/horizon_{prediction_length}/"
+            f"{path_trained_models}/horizon_{prediction_length}/"
             f"excluding_{state_code}/"
             f"model_excluding_{state_code}_{year}.pt"
         )
 
-        if os.path.exists(model_path):
-            out = predict_from_model(
-                model_path=model_path,
-                series=tensor_train_scaled,
-                horizon=prediction_length,
-                context_length=context_length,
-                top_k=top_k,
-                use_noise="true" if use_noise else "false",
-                device=device,
-            )
-            output_mymoe = out * std_vals + mean_vals
-        else:
-            output_mymoe = torch.zeros_like(output_timer)
+        out = predict_from_model(
+            model_path=model_path,
+            series=tensor_train_scaled,
+            horizon=prediction_length,
+            context_length=context_length,
+            top_k=top_k,
+            use_noise="true" if use_noise else "false",
+            device=device,
+        )
+        output_mymoe = out.to(device) * std_vals + mean_vals
 
         times_dict["My-MoE"] = round(time.time() - start, 4)
-
 
         # ----------------------------------
         # METRICS
         # ----------------------------------
         model_outputs = {
-            "Time-MoE": output_time_moe,
+            "Time-MoE": output_time_moe_200,
             "Timer": output_timer,
             "TimesFM": output_timesfm,
             "Morai": output_moirai_small,
@@ -294,28 +285,46 @@ def run_full_experiment_pipeline():
             f"- Horizon {horizon} - Context {context_length}"
         )
 
-        df_results, df_times = process_dataset(
-            state_code,
-            year,
-            context_length,
-            horizon,
-        )
+        try:
+            df_results, df_times = process_dataset(
+                state_code,
+                year,
+                context_length,
+                horizon,
+            )
 
-        if df_results is None:
-            return None
+            if df_results is None or df_times is None:
+                print(
+                    f"[SKIP] {state_code.upper()} - {year} "
+                    f"- Horizon {horizon}"
+                )
+                return None
 
-        return (
-            os.path.join(
+            results_file = os.path.join(
                 results_path,
                 f"results_{state_code}_{year}.csv",
-            ),
-            os.path.join(
+            )
+            times_file = os.path.join(
                 times_path,
                 f"times_{state_code}_{year}.csv",
-            ),
-            df_results,
-            df_times,
-        )
+            )
+
+            df_results.to_csv(results_file, index=False)
+            df_times.to_csv(times_file, index=False)
+
+            print(
+                f"[DONE] {state_code.upper()} - {year} "
+                f"- Horizon {horizon}"
+            )
+
+            return True  
+
+        except Exception as e:
+            print(
+                f"[ERROR] {state_code.upper()} - {year} "
+                f"- Horizon {horizon}: {e}"
+            )
+            return None
 
     # ======================================
     # MAIN LOOP (PARALLEL)
@@ -343,6 +352,10 @@ def run_full_experiment_pipeline():
 
         for excluding_folder in sorted(os.listdir(horizon_path)):
             state_code = excluding_folder.replace("excluding_", "")
+
+            if debug_state is not None and state_code != debug_state:
+                continue
+
             for year in YEARS:
                 context_length = get_context_length(year, horizon)
                 tasks.append(
@@ -356,7 +369,7 @@ def run_full_experiment_pipeline():
                     )
                 )
 
-        results = Parallel(
+        Parallel(
             n_jobs=N_CORES,
             backend="loky",
             verbose=10,
@@ -365,18 +378,11 @@ def run_full_experiment_pipeline():
             for task in tasks
         )
 
-        for item in results:
-            if item is None:
-                continue
-
-            results_file, times_file, df_results, df_times = item
-            df_results.to_csv(results_file, index=False)
-            df_times.to_csv(times_file, index=False)
 
     print("\nAll processing completed.")
 
     if analysis_trained_log:
-        run_analysis()
+        run_analysis(base_dir=path_trained_models, output_dir=f"output_dir/{path_trained_models}",)
 
 
 # ======================================

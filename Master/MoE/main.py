@@ -11,6 +11,8 @@ def main():
     parser.add_argument("--top_k", type=int, default=1)
     parser.add_argument("--use_noise", type=str, default="true")
     parser.add_argument("--norm", type=str, default="std")
+    parser.add_argument("--epochs", type=int, default=20)
+    parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--save_path", type=str, default="moe_model.pt")
     parser.add_argument("--device", type=str, default="cpu")
     args = parser.parse_args()
@@ -18,7 +20,7 @@ def main():
     if args.mode == "train":
         if not args.data:
             raise ValueError("Precisa fornecer --data no modo train")
-        train_and_save(args.data, args.context_length, args.horizon, args.save_path, top_k=args.top_k, use_noise=args.use_noise, device=args.device)
+        train_and_save(args.data, args.context_length, args.horizon, args.save_path, top_k=args.top_k, epochs=args.epochs, lr=args.lr, use_noise=args.use_noise, device=args.device)
 
     elif args.mode == "predict":
         if not args.series:

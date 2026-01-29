@@ -4,6 +4,8 @@ import shutil
 import pandas as pd
 import matplotlib.pyplot as plt
 
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+
 
 def run_analysis(
     base_dir="trained_models",
@@ -164,8 +166,8 @@ def run_analysis(
             index=False,
         )
 
-    print("✅ Análise concluída com sucesso!")
-    print(f"📁 Resultados salvos em: {output_dir}")
+    print("Análise concluída com sucesso!")
+    print(f"Resultados salvos em: {output_dir}")
 
 
 if __name__ == "__main__":
