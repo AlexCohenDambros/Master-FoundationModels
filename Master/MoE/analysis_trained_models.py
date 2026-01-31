@@ -15,13 +15,11 @@ def run_analysis(
     Executa a análise completa dos modelos treinados.
     Remove completamente o diretório de output a cada execução.
     """
-
     # ======================================================
     # Limpa output
     # ======================================================
     if os.path.exists(output_dir):
         shutil.rmtree(output_dir)
-
     os.makedirs(output_dir, exist_ok=True)
 
     all_weights_summary = []
@@ -37,7 +35,6 @@ def run_analysis(
     def analyze_experiment(exp_path, horizon, state, year):
         weights_path = os.path.join(exp_path, "experts_weights_train.csv")
         loss_path = os.path.join(exp_path, "train_loss.csv")
-
         exp_name = os.path.basename(exp_path)
 
         # ===============================
@@ -45,9 +42,7 @@ def run_analysis(
         # ===============================
         if os.path.exists(weights_path):
             df_w = pd.read_csv(weights_path)
-
             total_selections = len(df_w)
-
             summary = (
                 df_w.groupby("Learner")
                 .agg(
@@ -56,16 +51,13 @@ def run_analysis(
                 )
                 .reset_index()
             )
-
             summary["percentage"] = (
                 100.0 * summary["selections"] / total_selections
             )
-
             summary["horizon"] = horizon
             summary["state"] = state
             summary["year"] = year
             summary["experiment"] = exp_name
-
             all_weights_summary.append(summary)
 
         # ===============================
@@ -73,7 +65,6 @@ def run_analysis(
         # ===============================
         if os.path.exists(loss_path):
             df_l = pd.read_csv(loss_path)
-
             num_epochs = len(df_l)
             min_loss = df_l["Train Loss"].min()
 
@@ -89,19 +80,20 @@ def run_analysis(
             )
 
             # Plot Loss x Epochs
-            plot_dir = os.path.join(
-                output_dir, horizon, state, year, exp_name
-            )
+            # Cria apenas a pasta do horizonte
+            plot_dir = os.path.join(output_dir, state, horizon)
             os.makedirs(plot_dir, exist_ok=True)
 
             plt.figure()
             plt.plot(df_l["Epoch"], df_l["Train Loss"])
             plt.xlabel("Epoch")
             plt.ylabel("Train Loss")
-            plt.title(f"Loss x Epochs\n{exp_name}")
+            plt.title(f"Loss x Epochs - {year}\n{exp_name}")
             plt.tight_layout()
-
-            plt.savefig(os.path.join(plot_dir, "loss_curve.png"))
+            
+            # Nome do arquivo inclui o ano
+            filename = f"loss_curve_{year}.png"
+            plt.savefig(os.path.join(plot_dir, filename))
             plt.close()
 
     # ======================================================
@@ -123,7 +115,6 @@ def run_analysis(
                     continue
 
                 year = extract_year(exp_folder)
-
                 analyze_experiment(
                     exp_path=exp_path,
                     horizon=horizon,
@@ -136,7 +127,6 @@ def run_analysis(
     # ======================================================
     if all_weights_summary:
         df_weights = pd.concat(all_weights_summary, ignore_index=True)
-
         df_weights.to_csv(
             os.path.join(output_dir, "experts_weights_summary.csv"),
             index=False,

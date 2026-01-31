@@ -14,7 +14,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 os.environ["NCCL_P2P_DISABLE"] = "1"
 os.environ["NCCL_IB_DISABLE"] = "1"
 
-N_CORES = 2
+N_CORES = 15
 
 base_path = "../all_datasets_global_by_years"
 HORIZONS = [3, 6, 12, 24]
@@ -24,7 +24,7 @@ MAX_YEAR = 2024
 MIN_YEAR = 2020
 
 debug_state = "sp"  # None 
-device = "cpu"
+device = "cuda"
 
 # ======================================
 # HYPERPARAMETER GRID
@@ -241,6 +241,7 @@ for top_k, norm, use_noise, epochs, lr in EXPERIMENTS:
 
     run_full_experiment_pipeline(
         path_trained_models=trained_models_root,
+        experiment_name="model_" + experiment_name,
         top_k=top_k,
         use_noise=use_noise
     )

@@ -42,18 +42,19 @@ YEARS = [2024, 2023, 2022, 2021, 2020]
 BASE_CONTEXT = 410
 
 base_path = "../all_datasets_global_by_years"
-results_root = "results_by_state_year"
-times_root = "times_by_state_year"
 
 # ======================================
 # MAIN PIPELINE
 # ======================================
-def run_full_experiment_pipeline(path_trained_models: str = "trained_models", top_k:int = 2, use_noise = True):
+def run_full_experiment_pipeline(experiment_name: str, path_trained_models: str = "trained_models", top_k:int = 2, use_noise = True):
 
     device = "cuda"
 
     N_CORES = 5
     debug_state = "sp"  # None 
+
+    results_root = f"results_by_state_year/{experiment_name}"
+    times_root = f"times_by_state_year/{experiment_name}"
 
     os.makedirs(results_root, exist_ok=True)
     os.makedirs(times_root, exist_ok=True)
@@ -210,7 +211,7 @@ def run_full_experiment_pipeline(path_trained_models: str = "trained_models", to
         model_path = (
             f"{path_trained_models}/horizon_{prediction_length}/"
             f"excluding_{state_code}/"
-            f"model_excluding_{state_code}_{year}.pt"
+            f"{experiment_name}_{str(year)}.pt"
         )
 
         out = predict_from_model(
@@ -287,10 +288,10 @@ def run_full_experiment_pipeline(path_trained_models: str = "trained_models", to
 
         try:
             df_results, df_times = process_dataset(
-                state_code,
-                year,
-                context_length,
-                horizon,
+                state_code=state_code,
+                year=year,
+                context_length=context_length,
+                prediction_length=horizon,
             )
 
             if df_results is None or df_times is None:
@@ -382,7 +383,7 @@ def run_full_experiment_pipeline(path_trained_models: str = "trained_models", to
     print("\nAll processing completed.")
 
     if analysis_trained_log:
-        run_analysis(base_dir=path_trained_models, output_dir=f"output_dir/{path_trained_models}",)
+        run_analysis(base_dir=path_trained_models, output_dir=f"output_dir/{os.path.basename(path_trained_models)}",)
 
 
 # ======================================

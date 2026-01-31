@@ -260,35 +260,27 @@ class MoERouter(nn.Module):
             out = out.to(device).float().detach()
             preds_by_expert[expert_idx, idxs, :] = out
 
-        # PT:
-        # Combinação final das predições:
-        #  - se top_k == 1: hard routing (usa apenas o expert com maior peso)
-        #  - se top_k > 1: média ponderada das predições
-        #
-        # EN:
-        # Final prediction combination:
-        #  - if top_k == 1: hard routing (use only the highest-weight expert)
-        #  - if top_k > 1: weighted average of predictions
-        for i in range(batch_size):
-            idxs = topk_idx[i]
+        # -----------------------------------------
+        # SOFT
+        # -----------------------------------------
+        # preds_by_expert: (E, B, H)
+        # probs: (B, E)
 
-            if top_k == 1:
-                expert_idx = idxs[0]
-                final_preds[i] = preds_by_expert[expert_idx, i, :]
+        expert_preds = preds_by_expert.permute(1, 0, 2)  # (B, E, H)
+        final_preds = torch.einsum("be,beh->bh", probs, expert_preds)
 
-            else:
-                weights = probs[i, idxs]                    # (k,)
-                chosen_preds = preds_by_expert[idxs, i, :] # (k, horizon)
-                final_preds[i] = (weights.unsqueeze(-1) * chosen_preds).sum(dim=0)
+        if verbose:
+            for i in range(batch_size):
 
-            # Printing which models were selected on the router
-            if verbose:
-                chosen_list = idxs.tolist() if top_k > 1 else [idxs.item()]
+                idxs = topk_idx[i]
+
+                chosen_list = idxs.tolist()
                 selected_names = [self.expert_keys[int(j)] for j in chosen_list]
                 selected_weights = probs[i, chosen_list].tolist()
 
                 selected_str = ", ".join(
-                    f"{name}: {float(w):.3f}" for name, w in zip(selected_names, selected_weights)
+                    f"{name}: {float(w):.3f}"
+                    for name, w in zip(selected_names, selected_weights)
                 )
 
                 not_selected_idx = [j for j in range(self.num_experts) if j not in chosen_list]
@@ -296,15 +288,17 @@ class MoERouter(nn.Module):
                 not_selected_weights = [float(probs[i, j].item()) for j in not_selected_idx]
 
                 not_selected_str = ", ".join(
-                    f"{name}: {w:.3f}" for name, w in zip(not_selected_names, not_selected_weights)
+                    f"{name}: {w:.3f}"
+                    for name, w in zip(not_selected_names, not_selected_weights)
                 )
 
-                print(f"Sample: Selected -> {selected_str}; Not selected -> {not_selected_str}")
+                print(
+                    f"Sample {i}: "
+                    f"Selected -> {selected_str}; "
+                    f"Not selected -> {not_selected_str}"
+                )
 
-        if use_noise:
-            return final_preds, probs_clean, topk_idx
-        else:
-            return final_preds, None, None
+        return final_preds, probs_clean, topk_idx
 
     def save(self, path):
         """
@@ -479,7 +473,7 @@ def train_and_save(data_path, context_length, horizon, save_path, use_noise, top
     opt = torch.optim.Adam(model.gating.parameters(), lr=lr)
     loss_fn = nn.HuberLoss(delta=2.0, reduction='mean')
 
-    early_stopping = EarlyStopping(patience=3)
+    early_stopping = EarlyStopping(patience=5)
 
     for epoch in range(epochs):
 
@@ -516,21 +510,16 @@ def train_and_save(data_path, context_length, horizon, save_path, use_noise, top
             # -------------------------------------------------
             # Loss
             # -------------------------------------------------
-            if use_noise:
-                # preds, probs_clean, topk_idx
-                preds_norm, probs_clean, topk_idx = output
+            preds_norm, probs_clean, topk_idx = output
 
-                loss = moe_custom_loss(
-                    preds=preds_norm,
-                    targets=target_norm,
-                    probs_clean=probs_clean,
-                    topk_idx=topk_idx,
-                    pred_loss_fn=loss_fn,
-                    alpha=0.02, 
-                )
-            else:
-                preds_norm = output[0]
-                loss = loss_fn(preds_norm, target_norm)
+            loss = moe_custom_loss(
+                preds=preds_norm,
+                targets=target_norm,
+                probs_clean=probs_clean,
+                topk_idx=topk_idx,
+                pred_loss_fn=loss_fn,
+                alpha=0.02, 
+            )
 
             # -------------------------------------------------
             # Backprop
