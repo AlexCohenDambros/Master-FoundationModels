@@ -1,0 +1,25 @@
+{
+    "mean_epochs":{
+        "0":9.45
+    },
+    "min_epochs_experiment":{
+        "0":{
+            "horizon":"horizon_12",
+            "state":"excluding_sp",
+            "year":"2021",
+            "experiment":"model_topk_1_norm_std_noise_False_ep_50_lr_1e-05_2021_log",
+            "num_epochs":7,
+            "min_loss":0.271101782
+        }
+    },
+    "max_epochs_experiment":{
+        "0":{
+            "horizon":"horizon_3",
+            "state":"excluding_sp",
+            "year":"2024",
+            "experiment":"model_topk_1_norm_std_noise_False_ep_50_lr_1e-05_2024_log",
+            "num_epochs":16,
+            "min_loss":0.1201314376
+        }
+    }
+}
