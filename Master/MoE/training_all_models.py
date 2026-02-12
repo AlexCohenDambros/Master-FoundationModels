@@ -32,7 +32,7 @@ device = "cuda"
 TOP_K_LIST = [2, 1]
 NORM_LIST = ["std", "minmax"]
 USE_NOISE_LIST = [True, False]
-EPOCHS_LIST = [20, 30, 50]
+EPOCHS_LIST = [20, 30, 50, 100]
 LR_LIST = [1e-4, 1e-3, 1e-5]
 
 # ======================================

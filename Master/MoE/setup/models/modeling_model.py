@@ -122,6 +122,12 @@ class MoERouter(nn.Module):
         # EN: Gating: maps context vector (size context_length) to logits over experts
         self.gating = nn.Linear(context_length, self.num_experts)
 
+        # self.gating = nn.Sequential(
+        #     nn.Linear(context_length, 50),  # Camada intermediária com 50 neurônios
+        #     nn.ReLU(),                       # Ativação ReLU
+        #     nn.Linear(50, self.num_experts)  # Camada de saída para logits dos experts
+        # )
+
 
         # PT: Camada opcional de ruído (noise_linear) — usada em algumas variantes do roteador
         #     para adicionar ruído nos logits do gating, promovendo exploração dos especialistas
@@ -335,7 +341,7 @@ class MoERouter(nn.Module):
 # EarlyStopping
 # -------------------
 class EarlyStopping:
-    def __init__(self, patience=5, delta=0.0):
+    def __init__(self, patience=10, delta=0.0):
         self.patience = patience
         self.delta = delta
         self.best_score = None
@@ -473,7 +479,7 @@ def train_and_save(data_path, context_length, horizon, save_path, use_noise, top
     opt = torch.optim.Adam(model.gating.parameters(), lr=lr)
     loss_fn = nn.HuberLoss(delta=2.0, reduction='mean')
 
-    early_stopping = EarlyStopping(patience=5)
+    early_stopping = EarlyStopping(patience=10)
 
     for epoch in range(epochs):
 
