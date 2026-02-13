@@ -122,11 +122,11 @@ class MoERouter(nn.Module):
         # EN: Gating: maps context vector (size context_length) to logits over experts
         self.gating = nn.Linear(context_length, self.num_experts)
 
-        # self.gating = nn.Sequential(
-        #     nn.Linear(context_length, 50),  # Camada intermediária com 50 neurônios
-        #     nn.ReLU(),                       # Ativação ReLU
-        #     nn.Linear(50, self.num_experts)  # Camada de saída para logits dos experts
-        # )
+        self.gating = nn.Sequential(
+            nn.Linear(context_length, 50),  # Camada intermediária com 50 neurônios
+            nn.ReLU(),                       # Ativação ReLU
+            nn.Linear(50, self.num_experts)  # Camada de saída para logits dos experts
+        )
 
 
         # PT: Camada opcional de ruído (noise_linear) — usada em algumas variantes do roteador
@@ -142,8 +142,13 @@ class MoERouter(nn.Module):
 
         # PT: Inicializar pesos e bias de forma neutra (todos os experts com a mesma probabilidade inicial)
         # EN: Initialize weights and bias neutrally (all experts equally likely initially)
-        nn.init.constant_(self.gating.weight, 1/self.num_experts)
-        nn.init.constant_(self.gating.bias, 1/self.num_experts)
+
+        nn.init.zeros_(self.gating.weight)
+        nn.init.zeros_(self.gating.bias)
+
+        # nn.init.zeros_(self.gating[-1].weight)
+        # nn.init.zeros_(self.gating[-1].bias)
+
 
         # PT: Congelar os experts: desativa grad e coloca em eval(). Isso evita alocação de grad acidental dos experts e garante comportamento determinístico.
         # EN: Freeze experts: disables grad and places it in eval(). This prevents accidental grad allocation from experts and ensures deterministic behavior.
