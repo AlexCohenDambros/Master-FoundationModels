@@ -8,6 +8,10 @@ Time-MoE/model_time_moe4.py
 
 Master/MoE/*/*.txt
 
+*png
+*.json
+*.pt
+
 .venv
 
 # Byte-compiled / optimized / DLL files
