@@ -23,7 +23,7 @@ BASE_CONTEXT = 410
 MAX_YEAR = 2024
 MIN_YEAR = 2020
 
-debug_state = "sp"  # None 
+debug_state = "sp"  # None
 device = "cpu"
 
 # ======================================
@@ -52,6 +52,27 @@ def build_experiment_name(top_k, norm, use_noise, epochs, lr):
     )
 
 
+def experiment_has_started(trained_models_root: str) -> bool:
+    """
+    Retorna True se existir ao menos um arquivo .pt em qualquer
+    subpasta do experimento (horizon_X/excluding_Y/).
+    """
+    if not os.path.exists(trained_models_root):
+        return False
+
+    for root, dirs, files in os.walk(trained_models_root):
+        for file in files:
+            if file.endswith(".pt"):
+                print(
+                    f"  ⚠ Experimento já iniciado — encontrado: "
+                    f"{os.path.join(root, file)}",
+                    flush=True
+                )
+                return True
+
+    return False
+
+
 def run_training(
     command,
     excluded_state,
@@ -63,7 +84,16 @@ def run_training(
     dataset_path,
     device,
 ):
-    print(f"Training: excluding={excluded_state} | " f"year={year} | horizon={horizon} | " f"context={context_length} | " f"top_k={top_k} | " f"norm={norm} | " f"use_noise={use_noise} | " f"epochs={epochs} | " f"lr={lr} | " f"data={dataset_path} | " f"device={device}", flush=True)
+    print(
+        f"Training: excluding={excluded_state} | "
+        f"year={year} | horizon={horizon} | "
+        f"context={context_length} | "
+        f"top_k={top_k} | "
+        f"norm={norm} | "
+        f"data={dataset_path} | "
+        f"device={device}",
+        flush=True
+    )
 
     try:
         result = subprocess.run(
@@ -117,6 +147,15 @@ for top_k, norm, use_noise, epochs, lr in EXPERIMENTS:
     )
     os.makedirs(trained_models_root, exist_ok=True)
 
+    # ── Pula experimento inteiro se já foi iniciado ────────────────────
+    if experiment_has_started(trained_models_root):
+        print(
+            f"↷ Pulando experimento já iniciado: {experiment_name}",
+            flush=True
+        )
+        continue
+    # ──────────────────────────────────────────────────────────────────
+
     for HORIZON in HORIZONS:
         horizon_base_path = os.path.join(base_path, f"horizon_{HORIZON}")
         if not os.path.exists(horizon_base_path):
@@ -161,9 +200,6 @@ for top_k, norm, use_noise, epochs, lr in EXPERIMENTS:
                     state_model_dir,
                     f"model_{experiment_name}_{year}.pt"
                 )
-
-                if os.path.exists(save_model_path):
-                    continue
 
                 command = [
                     "python", "main.py",
