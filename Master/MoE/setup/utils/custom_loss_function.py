@@ -10,12 +10,7 @@
 #     - r_i: massa média de probabilidade do roteador para o expert i
 #            (calculada a partir dos logits LIMPOS, sem ruído)
 #     - f_i: fração de decisões de roteamento atribuídas ao expert i
-#            (top-k, possivelmente com ruído)
-#
-# IMPORTANTE:
-#     Esta auxiliary loss deve ser usada APENAS quando o roteamento com ruído
-#     estiver habilitado (use_noise=True). Para roteamento determinístico,
-#     use apenas a prediction loss.
+#            (top-k, com e sem ruído)
 #
 # -----------------------------------------------------------------------------
 # EN: Time-MoE aligned loss functions for Mixture-of-Experts routing
@@ -29,11 +24,8 @@
 #     - r_i: average router probability mass for expert i
 #            (from CLEAN router logits, without noise)
 #     - f_i: fraction of routing decisions assigned to expert i
-#            (top-k, possibly noisy)
+#            (top-k, with and without noise)
 #
-# IMPORTANT:
-#     This auxiliary loss must be used ONLY when noisy routing is enabled
-#     (use_noise=True). For deterministic routing, use only prediction loss.
 # =============================================================================
 
 import torch
@@ -52,7 +44,7 @@ def aux_loss(
 
     Args:
         probs_clean: (B, E) softmax sobre os logits LIMPOS do roteador (sem ruído)
-        topk_idx: (B, K) índices dos experts selecionados (top-k)
+        topk_idx: (B, K) índices dos experts selecionados (top-k, com e sem ruído)
 
     Returns:
         Tensor escalar (auxiliary loss)
@@ -61,7 +53,7 @@ def aux_loss(
 
     Args:
         probs_clean: (B, E) softmax over CLEAN router logits (without noise)
-        topk_idx: (B, K) indices of selected experts (top-k)
+        topk_idx: (B, K) indices of selected experts (top-k, with and without noise)
 
     Returns:
         Scalar tensor (auxiliary loss)
@@ -73,19 +65,17 @@ def aux_loss(
     # -------------------------------------------------------------------------
     # PT: r_i — massa de probabilidade do roteador por expert
     #
-    #     Soma as probabilidades do roteador para cada expert ao longo do batch
-    #     e normaliza para obter a distribuição média de probabilidade.
-    #
-    #     Esta forma é matematicamente equivalente a probs_clean.mean(dim=0),
-    #     já que cada linha de probs_clean soma 1 (softmax).
+    #     Média das probabilidades do roteador para cada expert ao longo do batch.
+    #     Como probs_clean é um softmax, cada linha já soma 1, portanto
+    #     mean(dim=0) retorna diretamente a distribuição média normalizada.
     #
     # EN: r_i — router probability mass per expert
     #
-    #     Sums router probabilities for each expert across the batch and
-    #     normalizes to obtain the average probability distribution.
+    #     Mean of router probabilities for each expert across the batch.
+    #     Since probs_clean is a softmax, each row already sums to 1, so
+    #     mean(dim=0) directly returns the normalized average distribution.
     # -------------------------------------------------------------------------
-    r = probs_clean.sum(dim=0)          # (E,)
-    r = r / (r.sum() + 1e-8)            # normalização explícita
+    r = probs_clean.mean(dim=0)         # (E,)
 
 
     # -------------------------------------------------------------------------
@@ -142,9 +132,9 @@ def moe_custom_loss(
         preds: predições do modelo (B, H)
         targets: ground truth (B, H)
         probs_clean: (B, E) probabilidades limpas do roteador (sem ruído)
-        topk_idx: (B, K) experts selecionados
+        topk_idx: (B, K) experts selecionados (com e sem ruído)
         pred_loss_fn: função de prediction loss (ex: HuberLoss)
-        alpha: peso da auxiliary loss (Time-MoE usa ~0.01–0.02)
+        alpha: peso da auxiliary loss (Time-MoE usa 0.02)
 
     Returns:
         Tensor escalar (loss total)
@@ -155,9 +145,9 @@ def moe_custom_loss(
         preds: model predictions (B, H)
         targets: ground truth (B, H)
         probs_clean: (B, E) clean router probabilities (without noise)
-        topk_idx: (B, K) selected experts
+        topk_idx: (B, K) selected experts (with and without noise)
         pred_loss_fn: prediction loss (e.g., HuberLoss)
-        alpha: auxiliary loss weight (Time-MoE uses ~0.01–0.02)
+        alpha: auxiliary loss weight (Time-MoE uses 0.02)
 
     Returns:
         Scalar tensor (total loss)

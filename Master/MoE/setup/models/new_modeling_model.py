@@ -29,7 +29,7 @@ from setup.utils.custom_loss_function import moe_custom_loss
 
 os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
 os.environ["TRANSFORMERS_VERBOSITY"] = "error"
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 
 EXPERT_CLASS_MAP = {
     "Moirai-Small": MoiraiSmallExpert,
@@ -159,8 +159,8 @@ class MoERouter(nn.Module):
 
         # PT: Inicializar pesos e bias de forma neutra (todos os experts com a mesma probabilidade inicial)
         # EN: Initialize weights and bias neutrally (all experts equally likely initially)
-        nn.init.constant_(self.gating.weight, 1/self.num_experts)
-        nn.init.constant_(self.gating.bias, 1/self.num_experts)
+        nn.init.xavier_uniform_(self.gating.weight, gain=0.5)
+        nn.init.zeros_(self.gating.bias)
 
         # PT: Congelar os experts: desativa grad e coloca em eval(). Isso evita alocação de grad acidental dos experts e garante comportamento determinístico.
         # EN: Freeze experts: disables grad and places it in eval(). This prevents accidental grad allocation from experts and ensures deterministic behavior.

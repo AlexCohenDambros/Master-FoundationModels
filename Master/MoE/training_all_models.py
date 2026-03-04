@@ -10,30 +10,36 @@ from run_experiments import run_full_experiment_pipeline
 # ======================================
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 os.environ["WANDB_MODE"] = "disabled"
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 os.environ["NCCL_P2P_DISABLE"] = "1"
 os.environ["NCCL_IB_DISABLE"] = "1"
 
-N_CORES = 1
+N_CORES = 4
 
 base_path = "../all_datasets_global_by_years"
 HORIZONS = [3, 6, 12, 24]
 
 BASE_CONTEXT = 410
 MAX_YEAR = 2024
-MIN_YEAR = 2020
+MIN_YEAR = 2024
 
 debug_state = "sp"  # None
-device = "cpu"
+device = "CUDA"
 
 # ======================================
 # HYPERPARAMETER GRID
 # ======================================
-TOP_K_LIST = [2, 1]
-NORM_LIST = ["std", "minmax"]
-USE_NOISE_LIST = [True, False]
-EPOCHS_LIST = [20, 30, 50, 100]
-LR_LIST = [1e-4, 1e-3, 1e-5]
+# TOP_K_LIST = [2, 1]
+# NORM_LIST = ["std", "minmax"]
+# USE_NOISE_LIST = [True, False]
+# EPOCHS_LIST = [20, 30, 50, 100]
+# LR_LIST = [1e-4, 1e-3, 1e-5]
+
+TOP_K_LIST = [2]
+NORM_LIST = ["std"]
+USE_NOISE_LIST = [True]
+EPOCHS_LIST = [100]
+LR_LIST = [1e-5]
 
 # ======================================
 # HELPERS

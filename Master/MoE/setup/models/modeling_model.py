@@ -17,7 +17,7 @@ from setup.utils.custom_loss_function import moe_custom_loss
 
 os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
 os.environ["TRANSFORMERS_VERBOSITY"] = "error"
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 
 EXPERT_CLASS_MAP = {
     "Moirai": MoiraiExpert,
@@ -120,13 +120,14 @@ class MoERouter(nn.Module):
 
         # PT: Gating: mapeia vetor de contexto (tamanho context_length) para logits sobre experts
         # EN: Gating: maps context vector (size context_length) to logits over experts
-        self.gating = nn.Linear(context_length, self.num_experts)
+        
+        # self.gating = nn.Linear(context_length, self.num_experts)
 
-        # self.gating = nn.Sequential(
-        #     nn.Linear(context_length, 50),  # Camada intermediária com 50 neurônios
-        #     nn.ReLU(),                       # Ativação ReLU
-        #     nn.Linear(50, self.num_experts)  # Camada de saída para logits dos experts
-        # )
+        self.gating = nn.Sequential(
+            nn.Linear(context_length, 50),  # Camada intermediária com 50 neurônios
+            nn.ReLU(),                       # Ativação ReLU
+            nn.Linear(50, self.num_experts)  # Camada de saída para logits dos experts
+        )
 
 
         # PT: Camada opcional de ruído (noise_linear) — usada em algumas variantes do roteador
