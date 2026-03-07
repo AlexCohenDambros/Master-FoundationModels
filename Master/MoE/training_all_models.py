@@ -24,7 +24,7 @@ MAX_YEAR = 2024
 MIN_YEAR = 2024
 
 debug_state = "sp"  # None
-device = "CUDA"
+device = "cuda"
 
 # ======================================
 # HYPERPARAMETER GRID

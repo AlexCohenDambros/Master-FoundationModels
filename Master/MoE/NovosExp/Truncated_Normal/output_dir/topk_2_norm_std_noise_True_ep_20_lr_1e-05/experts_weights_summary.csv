@@ -1,0 +1,6 @@
+Learner,selections,avg_weight,percentage,horizon,state,year,experiment
+Chronos,1056,0.5297644592497046,21.153846153846153,horizon_12,excluding_sp,2024,model_topk_2_norm_std_noise_True_ep_20_lr_1e-05_2024_log
+Moirai,1217,0.4875594860412664,24.37900641025641,horizon_12,excluding_sp,2024,model_topk_2_norm_std_noise_True_ep_20_lr_1e-05_2024_log
+Time-MoE,762,0.48274230335905094,15.264423076923077,horizon_12,excluding_sp,2024,model_topk_2_norm_std_noise_True_ep_20_lr_1e-05_2024_log
+Timer,1060,0.5106240239978399,21.233974358974358,horizon_12,excluding_sp,2024,model_topk_2_norm_std_noise_True_ep_20_lr_1e-05_2024_log
+TimesFM,897,0.48394396257199507,17.96875,horizon_12,excluding_sp,2024,model_topk_2_norm_std_noise_True_ep_20_lr_1e-05_2024_log

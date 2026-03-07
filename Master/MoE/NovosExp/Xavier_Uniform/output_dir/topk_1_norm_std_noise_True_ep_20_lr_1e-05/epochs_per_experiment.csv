@@ -1,0 +1,2 @@
+horizon,state,year,experiment,num_epochs,min_loss
+horizon_12,excluding_sp,2024,model_topk_1_norm_std_noise_True_ep_20_lr_1e-05_2024_log,20,0.166524649812625
