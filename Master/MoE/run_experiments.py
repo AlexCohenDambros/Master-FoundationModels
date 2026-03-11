@@ -237,192 +237,192 @@ def run_full_experiment_pipeline(experiment_name: str, path_trained_models: str 
 
         times_dict["My-MoE"] = round(time.time() - start, 4)
 
-                # ==================================
-        # CLASSICAL / ML MODELS
-        # ==================================
+        # # ==================================
+        # # CLASSICAL / ML MODELS
+        # # ==================================
 
-        train_cpu = tensor_train.cpu().numpy()
-        n_series = train_cpu.shape[0]
+        # train_cpu = tensor_train.cpu().numpy()
+        # n_series = train_cpu.shape[0]
 
-        # -----------------------------
-        # AutoETS
-        # -----------------------------
-        start = time.time()
+        # # -----------------------------
+        # # AutoETS
+        # # -----------------------------
+        # start = time.time()
 
-        preds = []
-        for i in range(n_series):
+        # preds = []
+        # for i in range(n_series):
 
-            series = train_cpu[i]
+        #     series = train_cpu[i]
 
-            df = pd.DataFrame({
-                "unique_id": "series",
-                "ds": np.arange(len(series)),
-                "y": series
-            })
+        #     df = pd.DataFrame({
+        #         "unique_id": "series",
+        #         "ds": np.arange(len(series)),
+        #         "y": series
+        #     })
 
-            sf = StatsForecast(
-                models=[AutoETS(season_length=1)],
-                freq=1,
-                n_jobs=1
-            )
+        #     sf = StatsForecast(
+        #         models=[AutoETS(season_length=1)],
+        #         freq=1,
+        #         n_jobs=1
+        #     )
 
-            forecast = sf.forecast(df=df, h=prediction_length)
-            preds.append(forecast["AutoETS"].values)
+        #     forecast = sf.forecast(df=df, h=prediction_length)
+        #     preds.append(forecast["AutoETS"].values)
 
-        output_autoets = torch.tensor(np.array(preds), device=device)
-        times_dict["AutoETS"] = round(time.time() - start, 4)
-
-
-        # -----------------------------
-        # AutoARIMA
-        # -----------------------------
-        start = time.time()
-
-        preds = []
-        for i in range(n_series):
-
-            series = train_cpu[i]
-
-            df = pd.DataFrame({
-                "unique_id": "series",
-                "ds": np.arange(len(series)),
-                "y": series
-            })
-
-            sf = StatsForecast(
-                models=[AutoARIMA(season_length=1)],
-                freq=1,
-                n_jobs=1
-            )
-
-            forecast = sf.forecast(df=df, h=prediction_length)
-            preds.append(forecast["AutoARIMA"].values)
-
-        output_autoarima = torch.tensor(np.array(preds), device=device)
-        times_dict["AutoARIMA"] = round(time.time() - start, 4)
+        # output_autoets = torch.tensor(np.array(preds), device=device)
+        # times_dict["AutoETS"] = round(time.time() - start, 4)
 
 
-        # -----------------------------
-        # N-BEATS
-        # -----------------------------
-        start = time.time()
-        preds = []
+        # # -----------------------------
+        # # AutoARIMA
+        # # -----------------------------
+        # start = time.time()
 
-        input_len = context_length - prediction_length
+        # preds = []
+        # for i in range(n_series):
 
-        for i in range(n_series):
+        #     series = train_cpu[i]
 
-            series = TimeSeries.from_values(train_cpu[i])
+        #     df = pd.DataFrame({
+        #         "unique_id": "series",
+        #         "ds": np.arange(len(series)),
+        #         "y": series
+        #     })
 
-            model = NBEATSModel(
-            input_chunk_length=input_len,
-            output_chunk_length=prediction_length,
-            n_epochs=10,
-            batch_size=32,
-            random_state=42,
-            )
+        #     sf = StatsForecast(
+        #         models=[AutoARIMA(season_length=1)],
+        #         freq=1,
+        #         n_jobs=1
+        #     )
 
-            model.fit(series)
+        #     forecast = sf.forecast(df=df, h=prediction_length)
+        #     preds.append(forecast["AutoARIMA"].values)
 
-            forecast = model.predict(prediction_length)
-
-            preds.append(forecast.values().flatten())
-
-        output_nbeats = torch.tensor(np.array(preds), device=device)
-        times_dict["NBEATS"] = round(time.time() - start, 4)
-
-
-        # -----------------------------
-        # Random Forest
-        # -----------------------------
-        start = time.time()
-
-        preds = []
-
-        for i in range(n_series):
-
-            series = train_cpu[i]
-
-            X = []
-            y = []
-
-            for t in range(context_length - prediction_length):
-                X.append(series[t:t+prediction_length])
-                y.append(series[t+prediction_length])
-
-            X = np.array(X)
-            y = np.array(y)
-
-            model = RandomForestRegressor(n_estimators=200)
-
-            model.fit(X, y)
-
-            last_window = series[-prediction_length:]
-
-            forecast = []
-
-            window = last_window.copy()
-
-            for _ in range(prediction_length):
-
-                pred = model.predict(window.reshape(1,-1))[0]
-                forecast.append(pred)
-
-                window = np.roll(window,-1)
-                window[-1] = pred
-
-            preds.append(forecast)
-
-        output_rf = torch.tensor(np.array(preds), device=device)
-        times_dict["RandomForest"] = round(time.time() - start, 4)
+        # output_autoarima = torch.tensor(np.array(preds), device=device)
+        # times_dict["AutoARIMA"] = round(time.time() - start, 4)
 
 
-        # -----------------------------
-        # XGBoost
-        # -----------------------------
-        start = time.time()
+        # # -----------------------------
+        # # N-BEATS
+        # # -----------------------------
+        # start = time.time()
+        # preds = []
 
-        preds = []
+        # input_len = context_length - prediction_length
 
-        for i in range(n_series):
+        # for i in range(n_series):
 
-            series = train_cpu[i]
+        #     series = TimeSeries.from_values(train_cpu[i])
 
-            X = []
-            y = []
+        #     model = NBEATSModel(
+        #     input_chunk_length=input_len,
+        #     output_chunk_length=prediction_length,
+        #     n_epochs=10,
+        #     batch_size=32,
+        #     random_state=42,
+        #     )
 
-            for t in range(context_length - prediction_length):
-                X.append(series[t:t+prediction_length])
-                y.append(series[t+prediction_length])
+        #     model.fit(series)
 
-            X = np.array(X)
-            y = np.array(y)
+        #     forecast = model.predict(prediction_length)
 
-            model = XGBRegressor(
-                n_estimators=200,
-                max_depth=6,
-                learning_rate=0.05
-            )
+        #     preds.append(forecast.values().flatten())
 
-            model.fit(X, y)
+        # output_nbeats = torch.tensor(np.array(preds), device=device)
+        # times_dict["NBEATS"] = round(time.time() - start, 4)
 
-            last_window = series[-prediction_length:]
 
-            forecast = []
-            window = last_window.copy()
+        # # -----------------------------
+        # # Random Forest
+        # # -----------------------------
+        # start = time.time()
 
-            for _ in range(prediction_length):
+        # preds = []
 
-                pred = model.predict(window.reshape(1,-1))[0]
-                forecast.append(pred)
+        # for i in range(n_series):
 
-                window = np.roll(window,-1)
-                window[-1] = pred
+        #     series = train_cpu[i]
 
-            preds.append(forecast)
+        #     X = []
+        #     y = []
 
-        output_xgb = torch.tensor(np.array(preds), device=device)
-        times_dict["XGBRegressor"] = round(time.time() - start, 4)
+        #     for t in range(context_length - prediction_length):
+        #         X.append(series[t:t+prediction_length])
+        #         y.append(series[t+prediction_length])
+
+        #     X = np.array(X)
+        #     y = np.array(y)
+
+        #     model = RandomForestRegressor(n_estimators=200)
+
+        #     model.fit(X, y)
+
+        #     last_window = series[-prediction_length:]
+
+        #     forecast = []
+
+        #     window = last_window.copy()
+
+        #     for _ in range(prediction_length):
+
+        #         pred = model.predict(window.reshape(1,-1))[0]
+        #         forecast.append(pred)
+
+        #         window = np.roll(window,-1)
+        #         window[-1] = pred
+
+        #     preds.append(forecast)
+
+        # output_rf = torch.tensor(np.array(preds), device=device)
+        # times_dict["RandomForest"] = round(time.time() - start, 4)
+
+
+        # # -----------------------------
+        # # XGBoost
+        # # -----------------------------
+        # start = time.time()
+
+        # preds = []
+
+        # for i in range(n_series):
+
+        #     series = train_cpu[i]
+
+        #     X = []
+        #     y = []
+
+        #     for t in range(context_length - prediction_length):
+        #         X.append(series[t:t+prediction_length])
+        #         y.append(series[t+prediction_length])
+
+        #     X = np.array(X)
+        #     y = np.array(y)
+
+        #     model = XGBRegressor(
+        #         n_estimators=200,
+        #         max_depth=6,
+        #         learning_rate=0.05
+        #     )
+
+        #     model.fit(X, y)
+
+        #     last_window = series[-prediction_length:]
+
+        #     forecast = []
+        #     window = last_window.copy()
+
+        #     for _ in range(prediction_length):
+
+        #         pred = model.predict(window.reshape(1,-1))[0]
+        #         forecast.append(pred)
+
+        #         window = np.roll(window,-1)
+        #         window[-1] = pred
+
+        #     preds.append(forecast)
+
+        # output_xgb = torch.tensor(np.array(preds), device=device)
+        # times_dict["XGBRegressor"] = round(time.time() - start, 4)
 
         # ----------------------------------
         # METRICS
@@ -435,11 +435,11 @@ def run_full_experiment_pipeline(experiment_name: str, path_trained_models: str 
             "Chronos": output_chronos_bolt_small,
             "My-MoE": output_mymoe,
 
-            "AutoETS": output_autoets,
-            "AutoARIMA": output_autoarima,
-            "NBEATS": output_nbeats,
-            "RandomForest": output_rf,
-            "XGBRegressor": output_xgb,
+            # "AutoETS": output_autoets,
+            # "AutoARIMA": output_autoarima,
+            # "NBEATS": output_nbeats,
+            # "RandomForest": output_rf,
+            # "XGBRegressor": output_xgb,
         }
 
         results = {}

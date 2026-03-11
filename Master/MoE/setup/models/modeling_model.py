@@ -140,6 +140,13 @@ class MoERouter(nn.Module):
         #     as in the "Noisy Top-K Gating" from the Switch Transformer (Google, 2021).
         self.noise_linear = nn.Linear(context_length, self.num_experts)
 
+        # PT: Inicializa pesos das camadas lineares do gating com Xavier Uniform e bias com zeros
+        # EN: Initializes weights of gating linear layers with Xavier Uniform and bias with zeros
+        for layer in self.gating:
+            if isinstance(layer, nn.Linear):  
+                nn.init.xavier_uniform_(layer.weight)  # PT: Xavier Uniform nos pesos / EN: Xavier Uniform on weights
+                nn.init.zeros_(layer.bias)             # PT: Zeros no bias / EN: Zeros on bias
+
         # PT: Congelar os experts: desativa grad e coloca em eval(). Isso evita alocação de grad acidental dos experts e garante comportamento determinístico.
         # EN: Freeze experts: disables grad and places it in eval(). This prevents accidental grad allocation from experts and ensures deterministic behavior.
         for ex in self.experts.values():
