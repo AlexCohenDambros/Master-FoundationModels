@@ -140,29 +140,6 @@ class MoERouter(nn.Module):
         #     as in the "Noisy Top-K Gating" from the Switch Transformer (Google, 2021).
         self.noise_linear = nn.Linear(context_length, self.num_experts)
 
-        # PT: Inicializar pesos e bias de forma neutra (todos os experts com a mesma probabilidade inicial)
-        # EN: Initialize weights and bias neutrally (all experts equally likely initially)
-
-        # nn.init.zeros_(self.gating.weight)
-        # nn.init.zeros_(self.gating.bias)
-
-        # nn.init.zeros_(self.gating[-1].weight)
-        # nn.init.zeros_(self.gating[-1].bias)
-
-        # nn.init.xavier_uniform_(self.gating[-1].weight)
-        # nn.init.zeros_(self.gating[-1].bias)
-
-        # Switch Transformer usa truncated normal com std reduzido (0.1x do padrão)
-        # fan-in = dimensão de entrada do gating
-        router = self.gating[2]
-
-        fan_in = router.weight.shape[1]
-        std = (0.1 / fan_in) ** 0.5
-
-        nn.init.trunc_normal_(router.weight, mean=0.0, std=std, a=-2*std, b=2*std)
-        nn.init.zeros_(router.bias)
-
-
         # PT: Congelar os experts: desativa grad e coloca em eval(). Isso evita alocação de grad acidental dos experts e garante comportamento determinístico.
         # EN: Freeze experts: disables grad and places it in eval(). This prevents accidental grad allocation from experts and ensures deterministic behavior.
         for ex in self.experts.values():

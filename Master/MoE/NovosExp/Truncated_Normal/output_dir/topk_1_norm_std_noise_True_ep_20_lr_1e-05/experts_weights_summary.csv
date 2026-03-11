@@ -1,6 +1,0 @@
-Learner,selections,avg_weight,percentage,horizon,state,year,experiment
-Chronos,884,1.0,23.61111111111111,horizon_12,excluding_sp,2024,model_topk_1_norm_std_noise_True_ep_20_lr_1e-05_2024_log
-Moirai,813,1.0,21.71474358974359,horizon_12,excluding_sp,2024,model_topk_1_norm_std_noise_True_ep_20_lr_1e-05_2024_log
-Time-MoE,559,1.0,14.930555555555555,horizon_12,excluding_sp,2024,model_topk_1_norm_std_noise_True_ep_20_lr_1e-05_2024_log
-Timer,810,1.0,21.634615384615383,horizon_12,excluding_sp,2024,model_topk_1_norm_std_noise_True_ep_20_lr_1e-05_2024_log
-TimesFM,678,1.0,18.108974358974358,horizon_12,excluding_sp,2024,model_topk_1_norm_std_noise_True_ep_20_lr_1e-05_2024_log

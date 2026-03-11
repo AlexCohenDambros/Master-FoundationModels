@@ -26,7 +26,7 @@ import numpy as np
 from statsforecast import StatsForecast
 from statsforecast.models import AutoETS, AutoARIMA
 
-from darts.models import NBEATSModel, RNNModel
+from darts.models import NBEATSModel
 from darts import TimeSeries
 
 from sklearn.ensemble import RandomForestRegressor
