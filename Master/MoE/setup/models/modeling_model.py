@@ -124,9 +124,9 @@ class MoERouter(nn.Module):
         # self.gating = nn.Linear(context_length, self.num_experts)
 
         self.gating = nn.Sequential(
-            nn.Linear(context_length, 50),  # Camada intermediária com 50 neurônios
-            nn.ReLU(),                       # Ativação ReLU
-            nn.Linear(50, self.num_experts)  # Camada de saída para logits dos experts
+            nn.Linear(context_length, 50),  
+            nn.ReLU(),                       
+            nn.Linear(50, self.num_experts)  
         )
 
         # PT: Camada opcional de ruído (noise_linear) — usada em algumas variantes do roteador
@@ -144,8 +144,8 @@ class MoERouter(nn.Module):
         # EN: Initializes weights of gating linear layers with Xavier Uniform and bias with zeros
         for layer in self.gating:
             if isinstance(layer, nn.Linear):  
-                nn.init.xavier_uniform_(layer.weight)  # PT: Xavier Uniform nos pesos / EN: Xavier Uniform on weights
-                nn.init.zeros_(layer.bias)             # PT: Zeros no bias / EN: Zeros on bias
+                nn.init.xavier_uniform_(layer.weight) 
+                nn.init.zeros_(layer.bias)            
 
         # PT: Congelar os experts: desativa grad e coloca em eval(). Isso evita alocação de grad acidental dos experts e garante comportamento determinístico.
         # EN: Freeze experts: disables grad and places it in eval(). This prevents accidental grad allocation from experts and ensures deterministic behavior.
@@ -565,7 +565,7 @@ def train_and_save(data_path, context_length, horizon, save_path, use_noise, top
     model.save(save_path)
     print(f'Saving model to {save_path}')
 
-    return model
+    return model, early_stopping.best_score
 # -------------------
 # Predict model
 # ------------------

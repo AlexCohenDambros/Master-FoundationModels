@@ -14,7 +14,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 os.environ["NCCL_P2P_DISABLE"] = "1"
 os.environ["NCCL_IB_DISABLE"] = "1"
 
-N_CORES = 25
+N_CORES = 20
 
 base_path = "../all_datasets_global_by_years"
 HORIZONS = [3, 6, 12, 24]
@@ -35,12 +35,6 @@ USE_NOISE_LIST = [True]
 EPOCHS_LIST = [30, 60, 100]
 LR_LIST = [1e-4, 1e-3, 1e-5]
 
-# TOP_K_LIST = [2]
-# NORM_LIST = ["std"]
-# USE_NOISE_LIST = [True]
-# EPOCHS_LIST = [100]
-# LR_LIST = [1e-5]
-
 # ======================================
 # HELPERS
 # ======================================
@@ -58,25 +52,13 @@ def build_experiment_name(top_k, norm, use_noise, epochs, lr):
     )
 
 
-def experiment_has_started(trained_models_root: str) -> bool:
+def is_model_complete(save_model_path: str) -> bool:
     """
-    Retorna True se existir ao menos um arquivo .pt em qualquer
-    subpasta do experimento (horizon_X/excluding_Y/).
+    Retorna True se o arquivo .pt específico deste job já existe.
+    Isso garante que apenas este job individual seja pulado,
+    sem afetar os demais jobs do mesmo experimento.
     """
-    if not os.path.exists(trained_models_root):
-        return False
-
-    for root, dirs, files in os.walk(trained_models_root):
-        for file in files:
-            if file.endswith(".pt"):
-                print(
-                    f"  ⚠ Experimento já iniciado — encontrado: "
-                    f"{os.path.join(root, file)}",
-                    flush=True
-                )
-                return True
-
-    return False
+    return os.path.isfile(save_model_path)
 
 
 def run_training(
@@ -132,6 +114,7 @@ def run_training(
 # BUILD JOB LIST (GRID SEARCH)
 # ======================================
 jobs = []
+skipped = 0
 
 EXPERIMENTS = list(product(
     TOP_K_LIST,
@@ -153,14 +136,8 @@ for top_k, norm, use_noise, epochs, lr in EXPERIMENTS:
     )
     os.makedirs(trained_models_root, exist_ok=True)
 
-    # ── Pula experimento inteiro se já foi iniciado ────────────────────
-    if experiment_has_started(trained_models_root):
-        print(
-            f"↷ Pulando experimento já iniciado: {experiment_name}",
-            flush=True
-        )
-        continue
-    # ──────────────────────────────────────────────────────────────────
+    # ── NÃO pula o experimento inteiro aqui —
+    # a verificação é feita job a job abaixo ──────────────────────────
 
     for HORIZON in HORIZONS:
         horizon_base_path = os.path.join(base_path, f"horizon_{HORIZON}")
@@ -207,6 +184,12 @@ for top_k, norm, use_noise, epochs, lr in EXPERIMENTS:
                     f"model_{experiment_name}_{year}.pt"
                 )
 
+                # ── Pula apenas este job individual se o .pt já existe ──
+                if is_model_complete(save_model_path):
+                    skipped += 1
+                    continue
+                # ──────────────────────────────────────────────────────
+
                 command = [
                     "python", "main.py",
                     "--mode", "train",
@@ -233,6 +216,11 @@ for top_k, norm, use_noise, epochs, lr in EXPERIMENTS:
                     dataset_path,
                     device
                 ))
+
+print(f"\n{'='*60}")
+print(f"  Jobs já completos (pulados) : {skipped}")
+print(f"  Jobs a executar             : {len(jobs)}")
+print(f"{'='*60}\n")
 
 # ======================================
 # RUN IN PARALLEL
@@ -271,7 +259,9 @@ print("All trainings completed.")
 # ======================================
 # OPTIONAL: RUN ANALYSIS PER EXPERIMENT
 # ======================================
-for top_k, norm, use_noise, epochs, lr in EXPERIMENTS:
+def run_experiment(top_k, norm, use_noise, epochs, lr):
+    print(f"[INICIANDO] top_k={top_k} | norm={norm} | use_noise={use_noise} | epochs={epochs} | lr={lr}")
+
     experiment_name = build_experiment_name(
         top_k, norm, use_noise, epochs, lr
     )
@@ -287,3 +277,8 @@ for top_k, norm, use_noise, epochs, lr in EXPERIMENTS:
         top_k=top_k,
         use_noise=use_noise
     )
+
+Parallel(n_jobs=3)(
+    delayed(run_experiment)(top_k, norm, use_noise, epochs, lr)
+    for top_k, norm, use_noise, epochs, lr in EXPERIMENTS
+)

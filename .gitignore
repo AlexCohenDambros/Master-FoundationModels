@@ -8,6 +8,7 @@ Time-MoE/model_time_moe4.py
 
 Master/MoE/*/*.txt
 Master/MoE/NovosExp/
+Master/MoE/Paper/
 
 *png
 *.json
