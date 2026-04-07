@@ -442,6 +442,20 @@ def run_full_experiment_pipeline(experiment_name: str, path_trained_models: str 
             # "XGBRegressor": output_xgb,
         }
 
+        # Models used in the ensemble (exclude My-MoE)
+        ensemble_models = {
+            k: v for k, v in model_outputs.items() if k != "My-MoE"
+        }
+
+        # Stack predictions from selected models
+        stacked_outputs = torch.stack(list(ensemble_models.values()), dim=0)
+
+        # Ensemble by averaging predictions position-wise
+        ensemble_output = torch.mean(stacked_outputs, dim=0)
+
+        # Add ensemble to dictionary
+        model_outputs["Ensemble"] = ensemble_output
+
         results = {}
 
         for name, preds in model_outputs.items():
