@@ -7,7 +7,7 @@ class ChronosExpert(nn.Module):
         super().__init__()
         self.device = device
 
-    def forward(self, input_tensor: torch.Tensor, context_length: int, prediction_length: int) -> torch.Tensor:
+    def forward(self, input_tensor: torch.Tensor, prediction_length: int) -> torch.Tensor:
         input_tensor = input_tensor.to(self.device)
 
         model = BaseChronosPipeline.from_pretrained(

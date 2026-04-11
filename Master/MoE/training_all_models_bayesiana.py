@@ -4,28 +4,41 @@ import re
 import json
 import optuna
 from joblib import Parallel, delayed
+import math
 from run_experiments import run_full_experiment_pipeline
+
+
+def compute_total_search_space(search_space):
+    total = 1
+    for cfg in search_space.values():
+        if cfg["type"] == "categorical":
+            total *= len(cfg["choices"])
+        elif cfg["type"] == "int":
+            step = cfg.get("step", 1)
+            total *= ((cfg["high"] - cfg["low"]) // step) + 1
+        elif cfg["type"] == "float":
+            return math.inf
+    return total
 
 # ======================================
 # GENERAL CONFIGURATION
 # ======================================
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 os.environ["WANDB_MODE"] = "disabled"
-os.environ["CUDA_VISIBLE_DEVICES"] = "3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 os.environ["NCCL_P2P_DISABLE"] = "1"
 os.environ["NCCL_IB_DISABLE"] = "1"
 
-N_CORES  = 20
-N_TRIALS = 9
+N_CORES  = 1
+MAX_TRIALS = 50
 N_WARMUP = 3
 
-base_path    = "../all_datasets_global_by_years"
-HORIZONS     = [3, 6, 12, 24]
-BASE_CONTEXT = 410
-MAX_YEAR     = 2024
-MIN_YEAR     = 2020
-debug_state  = None
-device       = "cuda"
+base_path   = "../all_datasets_global_by_years_test_diff_series"
+HORIZONS    = [12]
+MIN_YEAR    = 2024
+MAX_YEAR    = 2024
+debug_state = None
+device      = "cpu"
 
 # ======================================
 # SEARCH SPACE
@@ -33,18 +46,17 @@ device       = "cuda"
 SEARCH_SPACE = {
     "top_k":     {"type": "categorical", "choices": [2]},
     "norm":      {"type": "categorical", "choices": ["std"]},
-    "use_noise": {"type": "categorical", "choices": ["true", "false"]},  # string, not bool
+    "use_noise": {"type": "categorical", "choices": ["true"]},
     "epochs":    {"type": "categorical", "choices": [30, 60, 100]},
     "lr":        {"type": "categorical", "choices": [1e-4, 1e-3, 1e-5]},
 }
 
+total_combinations = compute_total_search_space(SEARCH_SPACE)
+N_TRIALS = min(MAX_TRIALS, total_combinations)
+
 # ======================================
 # HELPERS
 # ======================================
-def get_context_length(year: int, horizon: int) -> int:
-    return BASE_CONTEXT - horizon - ((MAX_YEAR - year) * horizon)
-
-
 def build_experiment_name(top_k, norm, use_noise, epochs, lr) -> str:
     return (
         f"topk_{top_k}"
@@ -100,11 +112,10 @@ def collect_metrics_from_saved_files(expected_paths: list) -> float:
 # SINGLE JOB TRAINING
 # ======================================
 def run_training(command, excluded_state, year, horizon,
-                 context_length, top_k, norm, dataset_path, device):
+                 top_k, norm, dataset_path, device):
     print(
         f"Training: excluding={excluded_state} | year={year} | "
-        f"horizon={horizon} | context={context_length} | "
-        f"top_k={top_k} | norm={norm} | device={device}",
+        f"horizon={horizon} | top_k={top_k} | norm={norm} | device={device}",
         flush=True,
     )
     try:
@@ -125,7 +136,7 @@ def run_training(command, excluded_state, year, horizon,
 def build_jobs(trained_models_root, experiment_name, top_k, norm, use_noise, epochs, lr):
     jobs           = []
     skipped        = 0
-    expected_paths = []  # all .pt paths this trial should produce
+    expected_paths = []
 
     for HORIZON in HORIZONS:
         horizon_base_path = os.path.join(base_path, f"horizon_{HORIZON}")
@@ -161,40 +172,35 @@ def build_jobs(trained_models_root, experiment_name, top_k, norm, use_noise, epo
                 if year < MIN_YEAR or year > MAX_YEAR:
                     continue
 
-                context_length = get_context_length(year, HORIZON)
-                if context_length <= 0:
-                    continue
-
                 dataset_path    = os.path.join(folder_path, dataset_file)
                 save_model_path = os.path.join(
                     state_model_dir,
                     f"model_{experiment_name}_{year}.pt",
                 )
 
-                expected_paths.append(save_model_path)  # track regardless of skip
+                expected_paths.append(save_model_path)
 
                 if is_model_complete(save_model_path):
                     skipped += 1
                     continue
 
                 command = [
-                    "python", "main.py",
-                    "--mode",           "train",
-                    "--data",           dataset_path,
-                    "--context_length", str(context_length),
-                    "--horizon",        str(HORIZON),
-                    "--top_k",          str(top_k),
-                    "--use_noise",      use_noise,
-                    "--norm",           norm,
-                    "--epochs",         str(epochs),
-                    "--lr",             str(lr),
-                    "--save_path",      save_model_path,
-                    "--device",         device,
+                    "python", "main_test.py",
+                    "--mode",      "train",
+                    "--data",      dataset_path,
+                    "--horizon",   str(HORIZON),
+                    "--top_k",     str(top_k),
+                    "--use_noise", use_noise,
+                    "--norm",      norm,
+                    "--epochs",    str(epochs),
+                    "--lr",        str(lr),
+                    "--save_path", save_model_path,
+                    "--device",    device,
                 ]
 
                 jobs.append((
                     command, excluded_state, year, HORIZON,
-                    context_length, top_k, norm, dataset_path, device,
+                    top_k, norm, dataset_path, device,
                 ))
 
     return jobs, skipped, expected_paths
@@ -207,12 +213,12 @@ def objective(trial: optuna.Trial) -> float:
     params    = suggest_hyperparams(trial)
     top_k     = params["top_k"]
     norm      = params["norm"]
-    use_noise = params["use_noise"]  # string: "true" or "false"
+    use_noise = params["use_noise"]
     epochs    = params["epochs"]
     lr        = params["lr"]
 
     experiment_name     = build_experiment_name(top_k, norm, use_noise, epochs, lr)
-    trained_models_root = os.path.join("trained_models", experiment_name)
+    trained_models_root = os.path.join("trained_models_test", experiment_name)
     os.makedirs(trained_models_root, exist_ok=True)
 
     jobs, skipped, expected_paths = build_jobs(
@@ -229,8 +235,8 @@ def objective(trial: optuna.Trial) -> float:
 
     if jobs:
         Parallel(n_jobs=N_CORES, backend="loky", verbose=5)(
-            delayed(run_training)(cmd, es, yr, hz, ctx, tk, nm, dp, dv)
-            for cmd, es, yr, hz, ctx, tk, nm, dp, dv in jobs
+            delayed(run_training)(cmd, es, yr, hz, tk, nm, dp, dv)
+            for cmd, es, yr, hz, tk, nm, dp, dv in jobs
         )
 
     metric = collect_metrics_from_saved_files(expected_paths)
@@ -322,10 +328,10 @@ if __name__ == "__main__":
 
     print(f"\nRunning final prediction pipeline with best params: {best_name}")
     run_full_experiment_pipeline(
-        path_trained_models=os.path.join("trained_models", best_name),
+        path_trained_models=os.path.join("trained_models_test", best_name),
         experiment_name="model_" + best_name,
         top_k=bp["top_k"],
-        use_noise=bp["use_noise"] == "true",  # convert string back to bool
+        use_noise=bp["use_noise"] == "true",
     )
 
     print("\nDone. Predictions generated for best trial only.")

@@ -7,7 +7,7 @@ class TimeMoEExpert(nn.Module):
         super().__init__()
         self.device = device
 
-    def forward(self, input_tensor: torch.Tensor, context_length: int, prediction_length: int) -> torch.Tensor:
+    def forward(self, input_tensor: torch.Tensor, prediction_length: int) -> torch.Tensor:
         model = AutoModelForCausalLM.from_pretrained(
             "Maple728/TimeMoE-200M",
             trust_remote_code=True,

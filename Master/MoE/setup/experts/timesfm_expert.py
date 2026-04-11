@@ -7,7 +7,7 @@ class TimesFMExpert(nn.Module):
         super().__init__()
         self.device = device
     
-    def forward(self, input_tensor: torch.Tensor, context_length: int, prediction_length: int) -> torch.Tensor:
+    def forward(self, input_tensor: torch.Tensor, prediction_length: int) -> torch.Tensor:
         model = timesfm.TimesFm(
             hparams=timesfm.TimesFmHparams(
                 backend="gpu" if self.device.lower() == "cuda" else "cpu",

@@ -7,11 +7,11 @@ class MoiraiExpert(nn.Module):
         super().__init__()
         self.device = device
 
-    def forward(self, input_tensor: torch.Tensor, context_length: int, prediction_length: int) -> torch.Tensor:
+    def forward(self, input_tensor: torch.Tensor, prediction_length: int) -> torch.Tensor:
         model = MoiraiForecast(
             module=MoiraiModule.from_pretrained(f"Salesforce/moirai-1.1-R-large"),
             prediction_length=prediction_length,
-            context_length=context_length,
+            context_length=input_tensor.shape[1],
             patch_size=16,
             num_samples=100,
             target_dim=1,
