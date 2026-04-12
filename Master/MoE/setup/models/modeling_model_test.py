@@ -252,6 +252,7 @@ class TimeSeriesEncoder(nn.Module):
         self.proj = nn.Sequential(
             nn.Linear(total_channels, out_dim),
             nn.GELU(),
+            nn.Dropout(p=0.1),
             nn.Linear(out_dim, out_dim),
         )
  
@@ -397,9 +398,6 @@ class MoERouter(nn.Module):
             if isinstance(layer, nn.Linear):
                 nn.init.xavier_uniform_(layer.weight)
                 nn.init.zeros_(layer.bias)
- 
-        nn.init.xavier_uniform_(self.noise_linear.weight)
-        nn.init.zeros_(self.noise_linear.bias)
  
         # PT: Congela experts: sem grad, modo eval permanente.
         #     O gradiente flui apenas pelo encoder e pelo gating.

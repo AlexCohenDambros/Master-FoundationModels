@@ -33,10 +33,21 @@ N_CORES  = 1
 MAX_TRIALS = 50
 N_WARMUP = 3
 
-base_path   = "../all_datasets_global_by_years_test_diff_series"
+# ======================================
+# DATASET MODE
+# ======================================
+
+DATASET_MODE_ANP_EXXON = False  
+
+if DATASET_MODE_ANP_EXXON == "anp_exxon":
+    base_path = "../all_datasets_global_by_years_test_diff_series"
+    MIN_YEAR    = 2024
+    MAX_YEAR    = 2024
+
+else:
+    base_path = "../benchmark_prepared/cif_2016"
+
 HORIZONS    = [12]
-MIN_YEAR    = 2024
-MAX_YEAR    = 2024
 debug_state = None
 device      = "cpu"
 
@@ -111,22 +122,70 @@ def collect_metrics_from_saved_files(expected_paths: list) -> float:
 # ======================================
 # SINGLE JOB TRAINING
 # ======================================
+# ======================================
+# SINGLE JOB TRAINING
+# ======================================
 def run_training(command, excluded_state, year, horizon,
                  top_k, norm, dataset_path, device):
-    print(
-        f"Training: excluding={excluded_state} | year={year} | "
-        f"horizon={horizon} | top_k={top_k} | norm={norm} | device={device}",
-        flush=True,
-    )
+
+    if DATASET_MODE_ANP_EXXON:
+        dataset_name = None
+    else:
+        # sobe dois níveis: dataset.jsonl → horizon_12 → cif
+        dataset_name = os.path.basename(
+            os.path.dirname(
+                os.path.dirname(dataset_path)
+            )
+        )
+
+    if DATASET_MODE_ANP_EXXON:
+        msg = (
+            f"Training: excluding={excluded_state} | year={year} | "
+            f"horizon={horizon} | top_k={top_k} | "
+            f"norm={norm} | device={device}"
+        )
+    else:
+        msg = (
+            f"Training: benchmark {dataset_name} | "
+            f"horizon={horizon} | top_k={top_k} | "
+            f"norm={norm} | device={device}"
+        )
+
+    print(msg, flush=True)
+
     try:
         result = subprocess.run(command, check=True, capture_output=True, text=True)
-        print(f"  Done | excluding={excluded_state} | year={year} | horizon={horizon}", flush=True)
+
+        if DATASET_MODE_ANP_EXXON:
+            print(
+                f"  Done | excluding={excluded_state} | year={year} | horizon={horizon}",
+                flush=True
+            )
+        else:
+            print(
+                f"  Done | benchmark {dataset_name} | horizon={horizon}",
+                flush=True
+            )
+
         if result.stdout:
             print(result.stdout, flush=True)
+
         if result.stderr:
             print(result.stderr, flush=True)
+
     except subprocess.CalledProcessError as e:
-        print(f"  FAILED | excluding={excluded_state} | year={year} | horizon={horizon}", flush=True)
+
+        if DATASET_MODE_ANP_EXXON:
+            print(
+                f"  FAILED | excluding={excluded_state} | year={year} | horizon={horizon}",
+                flush=True
+            )
+        else:
+            print(
+                f"  FAILED | benchmark {dataset_name} | horizon={horizon}",
+                flush=True
+            )
+
         print(e.stderr, flush=True)
 
 
@@ -134,77 +193,138 @@ def run_training(command, excluded_state, year, horizon,
 # BUILD JOB LIST
 # ======================================
 def build_jobs(trained_models_root, experiment_name, top_k, norm, use_noise, epochs, lr):
-    jobs           = []
-    skipped        = 0
+
+    jobs = []
+    skipped = 0
     expected_paths = []
 
     for HORIZON in HORIZONS:
+
         horizon_base_path = os.path.join(base_path, f"horizon_{HORIZON}")
         if not os.path.exists(horizon_base_path):
             continue
 
-        for excluded_state_folder in os.listdir(horizon_base_path):
-            if not excluded_state_folder.startswith("excluding_"):
-                continue
+        # =========================================================
+        # MODE 1 — ANP / EXXON DATASET (with years + excluding_state)
+        # =========================================================
+        if DATASET_MODE_ANP_EXXON:
 
-            excluded_state = excluded_state_folder.replace("excluding_", "")
-            if debug_state is not None and excluded_state != debug_state:
-                continue
+            for excluded_state_folder in os.listdir(horizon_base_path):
 
-            folder_path = os.path.join(horizon_base_path, excluded_state_folder)
-            if not os.path.isdir(folder_path):
-                continue
-
-            state_model_dir = os.path.join(
-                trained_models_root, f"horizon_{HORIZON}", excluded_state_folder
-            )
-            os.makedirs(state_model_dir, exist_ok=True)
-
-            for dataset_file in os.listdir(folder_path):
-                if not dataset_file.endswith(".jsonl"):
+                if not excluded_state_folder.startswith("excluding_"):
                     continue
 
-                match = re.search(r"dataset_(\d{4})\.jsonl", dataset_file)
-                if not match:
+                excluded_state = excluded_state_folder.replace("excluding_", "")
+
+                if debug_state is not None and excluded_state != debug_state:
                     continue
 
-                year = int(match.group(1))
-                if year < MIN_YEAR or year > MAX_YEAR:
+                folder_path = os.path.join(horizon_base_path, excluded_state_folder)
+                if not os.path.isdir(folder_path):
                     continue
 
-                dataset_path    = os.path.join(folder_path, dataset_file)
-                save_model_path = os.path.join(
-                    state_model_dir,
-                    f"model_{experiment_name}_{year}.pt",
+                state_model_dir = os.path.join(
+                    trained_models_root,
+                    f"horizon_{HORIZON}",
+                    excluded_state_folder
                 )
 
-                expected_paths.append(save_model_path)
+                os.makedirs(state_model_dir, exist_ok=True)
 
-                if is_model_complete(save_model_path):
-                    skipped += 1
-                    continue
+                for dataset_file in os.listdir(folder_path):
 
-                command = [
-                    "python", "main_test.py",
-                    "--mode",      "train",
-                    "--data",      dataset_path,
-                    "--horizon",   str(HORIZON),
-                    "--top_k",     str(top_k),
-                    "--use_noise", use_noise,
-                    "--norm",      norm,
-                    "--epochs",    str(epochs),
-                    "--lr",        str(lr),
-                    "--save_path", save_model_path,
-                    "--device",    device,
-                ]
+                    if not dataset_file.endswith(".jsonl"):
+                        continue
 
-                jobs.append((
-                    command, excluded_state, year, HORIZON,
-                    top_k, norm, dataset_path, device,
-                ))
+                    match = re.search(r"dataset_(\d{4})\.jsonl", dataset_file)
+                    if not match:
+                        continue
+
+                    year = int(match.group(1))
+
+                    if year < MIN_YEAR or year > MAX_YEAR:
+                        continue
+
+                    dataset_path = os.path.join(folder_path, dataset_file)
+
+                    save_model_path = os.path.join(
+                        state_model_dir,
+                        f"model_{experiment_name}_{year}.pt",
+                    )
+
+                    expected_paths.append(save_model_path)
+
+                    if is_model_complete(save_model_path):
+                        skipped += 1
+                        continue
+
+                    command = [
+                        "python", "main_test.py",
+                        "--mode", "train",
+                        "--data", dataset_path,
+                        "--horizon", str(HORIZON),
+                        "--top_k", str(top_k),
+                        "--use_noise", use_noise,
+                        "--norm", norm,
+                        "--epochs", str(epochs),
+                        "--lr", str(lr),
+                        "--save_path", save_model_path,
+                        "--device", device,
+                    ]
+
+                    jobs.append((
+                        command, excluded_state, year, HORIZON,
+                        top_k, norm, dataset_path, device,
+                    ))
+
+        # =========================================================
+        # MODE 2 — BENCHMARK DATASET (single dataset.jsonl)
+        # =========================================================
+        else:
+
+            dataset_path = os.path.join(horizon_base_path, "dataset.jsonl")
+
+            if not os.path.isfile(dataset_path):
+                continue
+
+            model_dir = os.path.join(
+                trained_models_root,
+                f"horizon_{HORIZON}"
+            )
+
+            os.makedirs(model_dir, exist_ok=True)
+
+            save_model_path = os.path.join(
+                model_dir,
+                f"model_{experiment_name}.pt"
+            )
+
+            expected_paths.append(save_model_path)
+
+            if is_model_complete(save_model_path):
+                skipped += 1
+                continue
+
+            command = [
+                "python", "main_test.py",
+                "--mode", "train",
+                "--data", dataset_path,
+                "--horizon", str(HORIZON),
+                "--top_k", str(top_k),
+                "--use_noise", use_noise,
+                "--norm", norm,
+                "--epochs", str(epochs),
+                "--lr", str(lr),
+                "--save_path", save_model_path,
+                "--device", device,
+            ]
+
+            jobs.append((
+                command, "benchmark", 0, HORIZON,
+                top_k, norm, dataset_path, device,
+            ))
 
     return jobs, skipped, expected_paths
-
 
 # ======================================
 # OBJECTIVE FUNCTION
