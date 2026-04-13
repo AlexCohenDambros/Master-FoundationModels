@@ -29,7 +29,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 os.environ["NCCL_P2P_DISABLE"] = "1"
 os.environ["NCCL_IB_DISABLE"] = "1"
 
-N_CORES  = 1
+N_CORES  = 2
 MAX_TRIALS = 50
 N_WARMUP = 3
 
@@ -94,6 +94,10 @@ def suggest_hyperparams(trial: optuna.Trial) -> dict:
     return params
 
 
+def params_signature(params: dict) -> str:
+    return json.dumps(params, sort_keys=True)
+
+
 def collect_metrics_from_saved_files(expected_paths: list) -> float:
     """Reads only the _metrics.json files this trial was expected to generate."""
     metrics = []
@@ -131,7 +135,6 @@ def run_training(command, excluded_state, year, horizon,
     if DATASET_MODE_ANP_EXXON:
         dataset_name = None
     else:
-        # sobe dois níveis: dataset.jsonl → horizon_12 → cif
         dataset_name = os.path.basename(
             os.path.dirname(
                 os.path.dirname(dataset_path)
@@ -306,7 +309,7 @@ def build_jobs(trained_models_root, experiment_name, top_k, norm, use_noise, epo
                 continue
 
             command = [
-                "python", "main_test.py",
+                "python", "main_bayesiana.py",
                 "--mode", "train",
                 "--data", dataset_path,
                 "--horizon", str(HORIZON),
@@ -331,6 +334,13 @@ def build_jobs(trained_models_root, experiment_name, top_k, norm, use_noise, epo
 # ======================================
 def objective(trial: optuna.Trial) -> float:
     params    = suggest_hyperparams(trial)
+
+    sig = params_signature(params)
+    for t in trial.study.trials:
+        if t.state == optuna.trial.TrialState.COMPLETE:
+            if params_signature(t.params) == sig:
+                raise optuna.exceptions.TrialPruned()
+
     top_k     = params["top_k"]
     norm      = params["norm"]
     use_noise = params["use_noise"]
@@ -354,10 +364,8 @@ def objective(trial: optuna.Trial) -> float:
     )
 
     if jobs:
-        Parallel(n_jobs=N_CORES, backend="loky", verbose=5)(
-            delayed(run_training)(cmd, es, yr, hz, tk, nm, dp, dv)
-            for cmd, es, yr, hz, tk, nm, dp, dv in jobs
-        )
+        for cmd, es, yr, hz, tk, nm, dp, dv in jobs:
+            run_training(cmd, es, yr, hz, tk, nm, dp, dv)
 
     metric = collect_metrics_from_saved_files(expected_paths)
     print(f"[Trial {trial.number}] metric = {metric:.6f} | params = {params}\n", flush=True)
@@ -373,6 +381,7 @@ if __name__ == "__main__":
         n_startup_trials=N_WARMUP,
         multivariate=True,
         seed=42,
+        constant_liar=True,
     )
 
     storage = optuna.storages.RDBStorage(
@@ -391,7 +400,7 @@ if __name__ == "__main__":
     study.optimize(
         objective,
         n_trials=N_TRIALS,
-        n_jobs=1,
+        n_jobs=N_CORES,
         show_progress_bar=True,
         gc_after_trial=True,
     )

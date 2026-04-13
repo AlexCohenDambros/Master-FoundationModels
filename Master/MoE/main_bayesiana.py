@@ -1,6 +1,6 @@
 import argparse
 import json
-from setup.models.modeling_model import train_and_save, predict_from_model
+from setup.models.modeling_model_test import train_and_save, predict_from_model
 
 def main():
     parser = argparse.ArgumentParser()
@@ -24,7 +24,6 @@ def main():
 
         _, val_loss = train_and_save(
             args.data,
-            args.context_length,
             args.horizon,
             args.save_path,
             top_k=args.top_k,
@@ -49,7 +48,6 @@ def main():
         preds = predict_from_model(
             args.save_path,
             args.series,
-            args.context_length,
             top_k=args.top_k,
             use_noise=args.use_noise,
             device=args.device,
