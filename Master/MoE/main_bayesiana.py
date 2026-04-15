@@ -1,13 +1,12 @@
 import argparse
 import json
-from setup.models.modeling_model_test import train_and_save, predict_from_model
+from setup.models.modeling_model_v2 import train_and_save, predict_from_model
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", choices=["train", "predict"], required=True)
     parser.add_argument("--data", type=str, help="Path to .jsonl training file")
     parser.add_argument("--series", nargs="+", type=float, help="Time series for prediction")
-    parser.add_argument("--context_length", type=int, default=168)
     parser.add_argument("--horizon", type=int, default=24)
     parser.add_argument("--top_k", type=int, default=1)
     parser.add_argument("--use_noise", type=str, default="true")
@@ -22,7 +21,7 @@ def main():
         if not args.data:
             raise ValueError("Must provide --data in train mode")
 
-        _, val_loss = train_and_save(
+        _, val_rmse = train_and_save(
             args.data,
             args.horizon,
             args.save_path,
@@ -35,11 +34,11 @@ def main():
         )
 
         # Save metric as JSON alongside the .pt so Optuna can read it
-        if val_loss is not None:
+        if val_rmse is not None:
             metrics_path = args.save_path.replace(".pt", "_metrics.json")
             with open(metrics_path, "w") as f:
-                json.dump({"val_loss": float(val_loss)}, f)
-            print(f"val_loss: {val_loss:.6f}")
+                json.dump({"val_rmse": float(val_rmse)}, f)
+            print(f"val_rmse: {val_rmse:.6f}")
 
     elif args.mode == "predict":
         if not args.series:
@@ -48,6 +47,7 @@ def main():
         preds = predict_from_model(
             args.save_path,
             args.series,
+            horizon=args.horizon,
             top_k=args.top_k,
             use_noise=args.use_noise,
             device=args.device,

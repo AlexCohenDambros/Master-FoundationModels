@@ -3,7 +3,6 @@ import os
 import re
 import json
 import optuna
-from joblib import Parallel, delayed
 import math
 from run_experiments import run_full_experiment_pipeline
 
@@ -20,6 +19,7 @@ def compute_total_search_space(search_space):
             return math.inf
     return total
 
+
 # ======================================
 # GENERAL CONFIGURATION
 # ======================================
@@ -30,8 +30,6 @@ os.environ["NCCL_P2P_DISABLE"] = "1"
 os.environ["NCCL_IB_DISABLE"] = "1"
 
 N_CORES  = 2
-MAX_TRIALS = 50
-N_WARMUP = 3
 
 # ======================================
 # DATASET MODE
@@ -39,7 +37,7 @@ N_WARMUP = 3
 
 DATASET_MODE_ANP_EXXON = False  
 
-if DATASET_MODE_ANP_EXXON == "anp_exxon":
+if DATASET_MODE_ANP_EXXON:
     base_path = "../all_datasets_global_by_years_test_diff_series"
     MIN_YEAR    = 2024
     MAX_YEAR    = 2024
@@ -63,7 +61,9 @@ SEARCH_SPACE = {
 }
 
 total_combinations = compute_total_search_space(SEARCH_SPACE)
-N_TRIALS = min(MAX_TRIALS, total_combinations)
+MAX_TRIALS = 50
+N_WARMUP   = 3
+N_TRIALS   = int(min(MAX_TRIALS, total_combinations))
 
 # ======================================
 # HELPERS
@@ -123,9 +123,6 @@ def collect_metrics_from_saved_files(expected_paths: list) -> float:
     return avg
 
 
-# ======================================
-# SINGLE JOB TRAINING
-# ======================================
 # ======================================
 # SINGLE JOB TRAINING
 # ======================================
@@ -262,7 +259,7 @@ def build_jobs(trained_models_root, experiment_name, top_k, norm, use_noise, epo
                         continue
 
                     command = [
-                        "python", "main_test.py",
+                        "python", "main_bayesiana.py",
                         "--mode", "train",
                         "--data", dataset_path,
                         "--horizon", str(HORIZON),
@@ -332,14 +329,33 @@ def build_jobs(trained_models_root, experiment_name, top_k, norm, use_noise, epo
 # ======================================
 # OBJECTIVE FUNCTION
 # ======================================
-def objective(trial: optuna.Trial) -> float:
-    params    = suggest_hyperparams(trial)
+_SEEN_STATES = (
+    optuna.trial.TrialState.COMPLETE,
+    optuna.trial.TrialState.RUNNING,
+    optuna.trial.TrialState.WAITING,
+)
 
+
+def objective(trial: optuna.Trial) -> float:
+    params = suggest_hyperparams(trial)
+
+    # Safety net: constant_liar reduces duplicates but cannot eliminate the
+    # race window completely.  If another worker (RUNNING/WAITING/COMPLETE)
+    # already holds the exact same params, prune this trial immediately so
+    # the slot is recycled and the sampler tries a different combination.
     sig = params_signature(params)
     for t in trial.study.trials:
-        if t.state == optuna.trial.TrialState.COMPLETE:
-            if params_signature(t.params) == sig:
-                raise optuna.exceptions.TrialPruned()
+        if t.number == trial.number:
+            continue
+        if t.state not in _SEEN_STATES:
+            continue
+        if params_signature(t.params) == sig:
+            print(
+                f"[Trial {trial.number}] Duplicate of trial #{t.number} "
+                f"({t.state.name}) — pruning.",
+                flush=True,
+            )
+            raise optuna.exceptions.TrialPruned()
 
     top_k     = params["top_k"]
     norm      = params["norm"]
@@ -377,6 +393,8 @@ def objective(trial: optuna.Trial) -> float:
 # ======================================
 if __name__ == "__main__":
 
+    # TPESampler with constant_liar makes each worker aware of what params
+    # other running workers already claimed, minimising duplicate suggestions.
     sampler = optuna.samplers.TPESampler(
         n_startup_trials=N_WARMUP,
         multivariate=True,
@@ -420,10 +438,8 @@ if __name__ == "__main__":
         print(f"    {k:12s} = {v}")
     print("=" * 60)
 
-    ranked = sorted(
-        [t for t in study.trials if t.value is not None],
-        key=lambda t: t.value,
-    )
+    completed = [t for t in study.trials if t.value is not None]
+    ranked = sorted(completed, key=lambda t: t.value or 0.0)
 
     print(f"\n  {'Rank':<5} {'Trial':<7} {'Metric':<12} {'epochs':<8} {'lr':<10} {'top_k':<7} {'norm':<6} {'noise'}")
     for rank, t in enumerate(ranked, 1):
