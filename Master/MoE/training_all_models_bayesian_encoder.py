@@ -33,8 +33,8 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 os.environ["NCCL_P2P_DISABLE"] = "1"
 os.environ["NCCL_IB_DISABLE"] = "1"
 
-N_CORES = 2
-device  = "cpu"
+N_CORES = 20
+device  = "cuda"
 
 # ======================================
 # PATHS
@@ -48,13 +48,13 @@ TRAINED_MODELS  = "trained_models"
 # ======================================
 DATASETS_TRAIN = {
     "cif_2016":        {"subfolder": "horizon_12", "horizon": 12},
-    # "etth":            {"subfolder": "horizon_36", "horizon": 36},
-    # "hospital":        {"subfolder": "horizon_12", "horizon": 12},
-    # "m3_monthly":      {"subfolder": "horizon_18", "horizon": 18},
-    # "m4_monthly":      {"subfolder": "horizon_18", "horizon": 18},
-    # "nn5_weekly":      {"subfolder": "horizon_8",  "horizon": 8},
-    # "tourism_monthly": {"subfolder": "horizon_24", "horizon": 24},
-    # "weather":         {"subfolder": "horizon_36", "horizon": 36},
+    "etth":            {"subfolder": "horizon_36", "horizon": 36},
+    "hospital":        {"subfolder": "horizon_12", "horizon": 12},
+    "m3_monthly":      {"subfolder": "horizon_18", "horizon": 18},
+    "m4_monthly":      {"subfolder": "horizon_18", "horizon": 18},
+    "nn5_weekly":      {"subfolder": "horizon_8",  "horizon": 8},
+    "tourism_monthly": {"subfolder": "horizon_24", "horizon": 24},
+    "weather":         {"subfolder": "horizon_36", "horizon": 36},
 }
 
 # ======================================
@@ -199,7 +199,7 @@ def build_train_command(
     device: str,
 ) -> list:
     return [
-        "python", "main_bayesiana.py",
+        "python", "main_encoder.py",
         "--mode",      "train",
         "--data",      dataset_path,
         "--horizon",   str(horizon),
