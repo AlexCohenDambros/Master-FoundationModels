@@ -7,7 +7,7 @@ from transformers import AutoModelForCausalLM
 from chronos import BaseChronosPipeline
 import timesfm
 from uni2ts.model.moirai import MoiraiForecast, MoiraiModule
-from setup.models.new_modeling_model import predict_from_model
+from Master.MoE.setup.models.modeling_model_more_experts import predict_from_model
 from sklearn.metrics import mean_absolute_percentage_error
 
 # ===============================

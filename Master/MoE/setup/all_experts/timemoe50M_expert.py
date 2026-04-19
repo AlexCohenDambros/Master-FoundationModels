@@ -1,0 +1,28 @@
+import torch
+import torch.nn as nn
+from transformers import AutoModelForCausalLM
+
+class TimeMoE50MExpert(nn.Module):
+    def __init__(self,  device):
+        super().__init__()
+    
+        self.device = device
+
+    def forward(self, input_tensor: torch.Tensor, prediction_length: int) -> torch.Tensor:
+        model = AutoModelForCausalLM.from_pretrained(
+            "Maple728/TimeMoE-50M",
+            device_map=self.device,
+            trust_remote_code=True,
+        )
+        model.to(self.device)
+        model.eval()
+
+        input_tensor = input_tensor.to(self.device)
+
+        with torch.no_grad():
+            out = model.generate(
+                input_tensor,
+                max_new_tokens=prediction_length
+            )
+
+        return out[:, -prediction_length:]

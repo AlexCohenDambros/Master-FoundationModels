@@ -1,0 +1,26 @@
+import torch
+import torch.nn as nn
+from chronos import BaseChronosPipeline
+
+class Chronost5TinyExpert(nn.Module):
+    def __init__(self,  device):
+        super().__init__()
+    
+        self.device = device
+
+    def forward(self, input_tensor: torch.Tensor, prediction_length: int) -> torch.Tensor:
+        input_tensor = input_tensor.to(self.device)
+
+
+        model = BaseChronosPipeline.from_pretrained(
+            "amazon/chronos-t5-tiny",  # use "amazon/chronos-bolt-small" for the corresponding Chronos-Bolt model
+            device_map=self.device,
+        )
+
+        with torch.no_grad():
+            _, output_chronos_scaled = model.predict_quantiles(
+                context=input_tensor,
+                prediction_length=prediction_length,
+            )
+
+        return output_chronos_scaled.to(self.device)

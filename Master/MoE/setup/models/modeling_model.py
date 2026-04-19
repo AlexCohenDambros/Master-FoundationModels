@@ -1,17 +1,18 @@
 import os
-import copy
-import json
+import random
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import Dataset, DataLoader
-import random
+from torch.utils.data import DataLoader
+from setup.utils.time_series_dataset import TimeSeriesDataset, load_jsonl
+from setup.utils.early_stopping import EarlyStopping
 
 from setup.experts.moirai_expert import MoiraiExpert
 from setup.experts.timemoe_expert import TimeMoEExpert
 from setup.experts.timesfm_expert import TimesFMExpert
 from setup.experts.timer_expert import TimerExpert
 from setup.experts.chronos_expert import ChronosExpert
+
 from setup.utils.logging_train import get_log_dir_from_save_path, append_experts_weights, append_train_loss
 from setup.utils.custom_loss_function import moe_custom_loss
 
@@ -26,59 +27,6 @@ EXPERT_CLASS_MAP = {
     "Timer": TimerExpert,
     "Chronos": ChronosExpert,
 }
-
-# -------------------
-# Dataset 
-# -------------------
-class TimeSeriesDataset(Dataset):
-    # PT: Representa um dataset de séries temporais, onde cada amostra é composta
-    #     por uma janela de contexto (entrada) e um horizonte de previsão (saída).
-    #     Exemplo de entrada: sequences = [[1,2,3,4,5,6,7,8]]
-    #     context_length = 5, horizon = 2
-    #     Amostra resultante: (inp=[1,2,3,4,5], tgt=[6,7])
-    #
-    # EN: Represents a time series dataset, where each sample consists of
-    #     a context window (input) and a forecast horizon (output).
-    #     Example input: sequences = [[1,2,3,4,5,6,7,8]]
-    #     context_length = 5, horizon = 2
-    #     Resulting sample: (inp=[1,2,3,4,5], tgt=[6,7])
-    # =============================================================================
-
-    # -------------------------------------------------------------------------
-    # PT: Inicializa o dataset, cortando as sequências em pares (entrada, alvo).
-    #     Entrada: sequences (lista de listas), context_length=5, horizon=2
-    #     Saída: lista de amostras [(inp, tgt), ...]
-    #
-    # EN: Initializes the dataset, slicing sequences into (input, target) pairs.
-    #     Input: sequences (list of lists), context_length=5, horizon=2
-    #     Output: list of samples [(inp, tgt), ...]
-    # -------------------------------------------------------------------------
-    def __init__(self, sequences, context_length, horizon):
-        self.samples = []
-        for seq in sequences:
-            if len(seq) >= context_length + horizon:
-                inp = seq[:context_length]
-                tgt = seq[context_length: context_length + horizon]
-                self.samples.append((inp, tgt))
-
-    # -------------------------------------------------------------------------
-    # PT: Retorna o número de amostras disponíveis no dataset.
-    #     Exemplo: len(dataset) -> 100
-    # EN: Returns the number of samples available in the dataset.
-    #     Example: len(dataset) -> 100
-    # -------------------------------------------------------------------------
-    def __len__(self):
-        return len(self.samples)
-
-    # -------------------------------------------------------------------------
-    # PT: Retorna a amostra (entrada, alvo) na posição idx em formato tensor.
-    #     Exemplo: dataset[0] -> (tensor([1,2,3,4,5]), tensor([6,7]))
-    # EN: Returns the (input, target) sample at position idx as tensors.
-    #     Example: dataset[0] -> (tensor([1,2,3,4,5]), tensor([6,7]))
-    # -------------------------------------------------------------------------
-    def __getitem__(self, idx):
-        inp, tgt = self.samples[idx]
-        return torch.tensor(inp, dtype=torch.float32), torch.tensor(tgt, dtype=torch.float32)
 
 # -------------------
 # MoERouter
@@ -158,11 +106,10 @@ class MoERouter(nn.Module):
         # EN: Move parameters/architecture to the desired device
         self.to(device)
 
-    def forward(self, x: torch.Tensor, context_length: int, horizon: int, dir_csv_experts:str, top_k: int = 2, use_noise: bool = False, verbose: bool = False):
+    def forward(self, x: torch.Tensor, horizon: int, dir_csv_experts:str, top_k: int = 2, use_noise: bool = False, verbose: bool = False):
         """
         PT:
         - x: tensor (batch_size, context_length) contendo o contexto temporal por amostra.
-        - context_length: tamanho da janela de contexto utilizada como entrada do modelo.
         - horizon: horizonte de previsão (número de passos futuros a serem previstos).
         - dir_csv_experts: caminho para o diretório contendo os arquivos CSV com as
         predições ou metadados dos experts.
@@ -177,7 +124,6 @@ class MoERouter(nn.Module):
 
         EN:
         - x: tensor (batch_size, context_length) containing the temporal context per sample.
-        - context_length: length of the input context window.
         - horizon: forecasting horizon (number of future time steps to predict).
         - dir_csv_experts: path to the directory containing CSV files with experts'
         predictions or metadata.
@@ -263,7 +209,7 @@ class MoERouter(nn.Module):
             expert_module = self.experts[expert_key]
 
             with torch.no_grad():
-                out = expert_module(xb_for_expert, context_length=context_length, prediction_length=horizon)
+                out = expert_module(xb_for_expert, prediction_length=horizon)
 
             out = out.to(device).float().detach()
             preds_by_expert[expert_idx, idxs, :] = out
@@ -338,70 +284,6 @@ class MoERouter(nn.Module):
         model.to(device)
         model.eval()
         return model
-
-# -------------------
-# EarlyStopping
-# -------------------
-class EarlyStopping:
-    def __init__(self, patience=10, delta=0.0):
-        self.patience = patience
-        self.delta = delta
-        self.best_score = None
-        self.early_stop = False
-        self.counter = 0
-        self.best_model_state = None
-
-    def __call__(self, loss, model):
-        score = -loss  
-        if self.best_score is None:
-            self.best_score = score
-            self.best_model_state = copy.deepcopy(model.state_dict())
-
-        elif score < self.best_score + self.delta:
-            self.counter += 1
-            if self.counter >= self.patience:
-                self.early_stop = True
-
-        else:
-            self.best_score = score
-            self.best_model_state = copy.deepcopy(model.state_dict())
-            self.counter = 0
-
-    def load_best_model(self, model):
-        model.load_state_dict(self.best_model_state)
-
-# -------------------
-# Load Data
-# -------------------
-def load_jsonl(path):
-    # -----------------------------------------------------------------------------
-    # PT: Carrega um arquivo no formato JSONL (JSON por linha), extrai a chave
-    #     "sequence" de cada linha e converte os valores em float.
-    #     Exemplo de entrada: arquivo JSONL com linhas:
-    #         {"sequence": [1, 2, 3]}
-    #         {"sequence": [4, 5, 6]}
-    #     Saída: [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
-    #
-    # EN: Loads a JSONL (JSON per line) file, extracts the "sequence" key from each
-    #     line, and converts the values to float.
-    #     Example input: JSONL file with lines:
-    #         {"sequence": [1, 2, 3]}
-    #         {"sequence": [4, 5, 6]}
-    #     Output: [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
-    # =============================================================================
-
-    seqs = []
-    with open(path, "r", encoding="utf-8") as f:
-        for line in f:
-            l = line.strip()
-            if not l:
-                continue
-            obj = json.loads(l)
-            seq = obj.get("sequence")
-            if seq is None:
-                raise ValueError("Each JSONL line must have the key 'sequence'")
-            seqs.append([float(x) for x in seq])
-    return seqs
 
 # -------------------
 # Train and Save Model
@@ -513,7 +395,7 @@ def train_and_save(data_path, context_length, horizon, save_path, use_noise, top
             # -------------------------------------------------
             # Forward
             # -------------------------------------------------
-            output = model(data_norm, context_length=context_length, horizon=horizon, dir_csv_experts=csv_experts, use_noise=use_noise, top_k=top_k)
+            output = model(data_norm, horizon=horizon, dir_csv_experts=csv_experts, use_noise=use_noise, top_k=top_k)
             
             # -------------------------------------------------
             # Loss
@@ -565,7 +447,7 @@ def train_and_save(data_path, context_length, horizon, save_path, use_noise, top
     model.save(save_path)
     print(f'Saving model to {save_path}')
 
-    return model, early_stopping.best_score
+    return model
 # -------------------
 # Predict model
 # ------------------
@@ -612,7 +494,7 @@ def predict_from_model(model_path, series, context_length, horizon, top_k, use_n
             raise ValueError("Series too short for the requested context")
         x = series[-context_length:].unsqueeze(0)  # (1, context_length)
         with torch.no_grad():
-            out = model(x=x, context_length=context_length, horizon=horizon, dir_csv_experts=csv_experts, top_k=top_k, use_noise=use_noise, verbose=verbose)
+            out = model(x=x, horizon=horizon, dir_csv_experts=csv_experts, top_k=top_k, use_noise=use_noise, verbose=verbose)
         return out[0].cpu()  # (1, horizon)
 
     # Case 2D
@@ -623,7 +505,7 @@ def predict_from_model(model_path, series, context_length, horizon, top_k, use_n
                 raise ValueError("One of the series is too short for the requested context")
             x = row[-context_length:].unsqueeze(0)  # (1, context_length)
             with torch.no_grad():
-                out = model(x=x, context_length=context_length, horizon=horizon, dir_csv_experts=csv_experts, top_k=top_k, use_noise=use_noise, verbose=verbose)
+                out = model(x=x, horizon=horizon, dir_csv_experts=csv_experts, top_k=top_k, use_noise=use_noise, verbose=verbose)
             outs.append(out[0].cpu())
         return torch.cat(outs, dim=0)  # (batch, horizon)
 

@@ -6,6 +6,8 @@ Time-MoE/model_time_moe4.py
 
 *.idea
 
+Master/MoE/bayesian_search_results.json
+Master/MoE/bayesian_search.db
 Master/MoE/*/*.txt
 Master/MoE/NovosExp/
 Master/MoE/Paper/

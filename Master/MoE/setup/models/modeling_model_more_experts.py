@@ -1,0 +1,535 @@
+import os
+import random
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import DataLoader
+from setup.utils.time_series_dataset import TimeSeriesDataset, load_jsonl
+from setup.utils.early_stopping import EarlyStopping
+
+from setup.all_experts.moirai_small_expert import MoiraiSmallExpert
+from setup.all_experts.moirai_base_expert import MoiraiBaseExpert
+from setup.all_experts.moirai_large_expert import MoiraiLargeExpert
+from setup.all_experts.timemoe50M_expert import TimeMoE50MExpert
+from setup.all_experts.timemoe200M_expert import TimeMoE200MExpert
+from setup.all_experts.timesfm_expert import TimesFMExpert
+from setup.all_experts.timer_expert import TimerExpert
+from setup.all_experts.chronos_t5_tiny import Chronost5TinyExpert
+from setup.all_experts.chronos_t5_mini import Chronost5MiniExpert
+from setup.all_experts.chronos_t5_small import Chronost5SmallExpert
+from setup.all_experts.chronos_t5_base import Chronost5BaseExpert
+from setup.all_experts.chronos_t5_large import Chronost5LargeExpert
+from setup.all_experts.chronos_bolt_tiny import ChronosBoltTinyExpert
+from setup.all_experts.chronos_bolt_mini import ChronosBoltMiniExpert
+from setup.all_experts.chronos_bolt_small import ChronosBoltSmallExpert
+from setup.all_experts.chronos_bolt_base import ChronosBoltBaseExpert
+
+from setup.utils.logging_train import get_log_dir_from_save_path, append_experts_weights, append_train_loss
+from setup.utils.custom_loss_function import moe_custom_loss
+
+os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+os.environ["CUDA_VISIBLE_DEVICES"] = "3"
+
+EXPERT_CLASS_MAP = {
+    "Moirai-Small": MoiraiSmallExpert,
+    "Moirai-Base": MoiraiBaseExpert,
+    "Moirai-Large": MoiraiLargeExpert,
+    "Time-MoE50M": TimeMoE50MExpert,
+    "Time-MoE200M": TimeMoE200MExpert,
+    "TimesFM": TimesFMExpert,
+    "Timer": TimerExpert,
+    "Chronos-t5-Tiny": Chronost5TinyExpert,
+    "Chronos-t5-Mini": Chronost5MiniExpert,
+    "Chronos-t5-Small": Chronost5SmallExpert,
+    "Chronos-t5-Base": Chronost5BaseExpert,
+    "Chronos-t5-Large": Chronost5LargeExpert,
+    "Chronos-Bolt-Tiny": ChronosBoltTinyExpert,
+    "Chronos-Bolt-Mini": ChronosBoltMiniExpert,
+    "Chronos-Bolt-Small": ChronosBoltSmallExpert,
+    "Chronos-Bolt-Base": ChronosBoltBaseExpert,
+}
+
+# -------------------
+# MoERouter
+# -------------------
+class MoERouter(nn.Module):
+    # =============================================================================
+    # PT: Roteador (router) do Mixture-of-Experts para séries temporais.
+    #     - Mantém um dicionário de experts (foundation models) instanciados via
+    #       EXPERT_CLASS_MAP.
+    #     - O gating (roteador) é uma camada linear que mapeia o contexto para
+    #       logits sobre os experts. Seleciona top-k experts por amostra, chama
+    #       cada expert em no_grad (zero-shot) e combina predições por pesos.
+    #
+    # EN: Router for Mixture-of-Experts for time-series.
+    #     - Keeps a ModuleDict of experts created from EXPERT_CLASS_MAP.
+    #     - The gating is a linear layer mapping context to logits over experts.
+    #     - Selects top-k experts per sample, calls experts in no_grad (zero-shot)
+    #       and combines predictions by weights.
+    # =============================================================================
+
+    def __init__(self, context_length:int, device="cpu"):
+        super().__init__()
+        self.device = device
+
+        # PT: keys dos experts na ordem definida (lista de strings)
+        # EN: keys of experts in the defined order (list of strings)
+        self.expert_keys = list(EXPERT_CLASS_MAP.keys())
+
+        # PT: número de experts
+        # EN: number of experts
+        self.num_experts = len(self.expert_keys)
+
+        # PT: Instancia cada expert a partir do mapa (device)
+        # EN: Instantiates each expert from the map (device)
+        self.experts = nn.ModuleDict({
+            k: EXPERT_CLASS_MAP[k](device=device)
+            for k in self.expert_keys
+        })
+
+        # PT: Gating: mapeia vetor de contexto (tamanho context_length) para logits sobre experts
+        # EN: Gating: maps context vector (size context_length) to logits over experts
+        
+        # self.gating = nn.Linear(context_length, self.num_experts)
+
+        self.gating = nn.Sequential(
+            nn.Linear(context_length, 50),  
+            nn.ReLU(),                       
+            nn.Linear(50, self.num_experts)  
+        )
+
+        # PT: Camada opcional de ruído (noise_linear) — usada em algumas variantes do roteador
+        #     para adicionar ruído nos logits do gating, promovendo exploração dos especialistas
+        #     e evitando que apenas um expert seja sempre selecionado.
+        #     O ruído normalmente é amostrado de uma distribuição Gaussiana e somado aos logits,
+        #     seguindo a formulação do "Noisy Top-K Gating" do Switch Transformer (Google, 2021).
+        # EN: Optional noise layer — used in some router variants to inject noise into gating logits,
+        #     encouraging exploration of different experts and preventing collapse to a single expert.
+        #     The noise is typically sampled from a Gaussian distribution and added to the logits,
+        #     as in the "Noisy Top-K Gating" from the Switch Transformer (Google, 2021).
+        self.noise_linear = nn.Linear(context_length, self.num_experts)
+
+        # PT: Inicializa pesos das camadas lineares do gating com Xavier Uniform e bias com zeros
+        # EN: Initializes weights of gating linear layers with Xavier Uniform and bias with zeros
+        for layer in self.gating:
+            if isinstance(layer, nn.Linear):  
+                nn.init.xavier_uniform_(layer.weight) 
+                nn.init.zeros_(layer.bias)            
+
+        # PT: Congelar os experts: desativa grad e coloca em eval(). Isso evita alocação de grad acidental dos experts e garante comportamento determinístico.
+        # EN: Freeze experts: disables grad and places it in eval(). This prevents accidental grad allocation from experts and ensures deterministic behavior.
+        for ex in self.experts.values():
+            for p in ex.parameters():
+                p.requires_grad = False
+            ex.eval()  
+
+        # PT: Move parâmetros/arquitetura para o dispositivo desejado
+        # EN: Move parameters/architecture to the desired device
+        self.to(device)
+
+    def forward(self, x: torch.Tensor, horizon: int, dir_csv_experts:str, top_k: int = 2, use_noise: bool = False, verbose: bool = False):
+        """
+        PT:
+        - x: tensor (batch_size, context_length) contendo o contexto temporal por amostra.
+        - horizon: horizonte de previsão (número de passos futuros a serem previstos).
+        - dir_csv_experts: caminho para o diretório contendo os arquivos CSV com as
+        predições ou metadados dos experts.
+        - top_k: número de experts selecionados pelo roteador para cada amostra.
+        - use_noise: se True, adiciona ruído (ex: Gumbel ou Gaussiano) às pontuações do
+        roteador para incentivar exploração.
+        - verbose: se True, imprime logs detalhados durante o forward (ex: experts
+        selecionados, pesos e shapes intermediários).
+
+        Retorna:
+        - Tensor (batch_size, horizon) com as predições combinadas dos experts selecionados.
+
+        EN:
+        - x: tensor (batch_size, context_length) containing the temporal context per sample.
+        - horizon: forecasting horizon (number of future time steps to predict).
+        - dir_csv_experts: path to the directory containing CSV files with experts'
+        predictions or metadata.
+        - top_k: number of experts selected by the router per sample.
+        - use_noise: if True, adds noise (e.g., Gumbel or Gaussian) to router scores
+        to encourage exploration.
+        - verbose: if True, prints detailed logs during the forward pass (e.g., selected
+        experts, routing weights, intermediate tensor shapes).
+
+        Returns:
+        - Tensor (batch_size, horizon) with the combined predictions from the selected experts.
+        """
+
+        # PT: move o input para o device do modelo (pode já estar no mesmo device; .to faz nada nesse caso)
+        # EN: move the input to the model's device (it may already be on the same device; .to does nothing in that case)
+        x_device = x.to(self.device)
+
+        # computa logits (batch_size, E) e probs softmax (batch_size, E)
+        logits = self.gating(x_device)                # raw scores do roteador / router raw scores
+
+        probs_clean = F.softmax(logits, dim=-1)
+
+        # Add noise only during training
+        if use_noise and self.training:
+            noise = self.noise_linear(x_device)
+            noise_std = F.softplus(noise)
+            final_logits = logits + (torch.randn_like(logits) * noise_std)
+        else:
+            final_logits = logits
+        
+        top_k_logits, topk_idx  = torch.topk(final_logits, k=top_k, dim=-1)
+
+        # Create a sparse routing mask
+        zeros = torch.full_like(final_logits, float('-inf'))
+        sparse_logits = zeros.scatter(-1, topk_idx , top_k_logits)
+        probs  = F.softmax(sparse_logits, dim=-1)
+
+        # >>>>>>> LOG <<<<<<<
+        # Show selected experts and their weights for each sample
+        for i in range(topk_idx .size(0)):
+            learners = [self.expert_keys[idx.item()] for idx in topk_idx [i]]
+            weights = probs[i, topk_idx[i]].detach().cpu().numpy()
+
+            append_experts_weights(
+                dir_csv_experts,
+                sample_idx=i,
+                learners=learners,
+                weights=weights
+            )
+        # >>>>>>> END LOG <<<<<<<
+
+        batch_size = x_device.size(0)  # batch_size
+
+        # PT: tensor final que irá armazenar as predições combinadas (batch_size, horizon)
+        # EN: final tensor that will store the combined predictions (batch_size, horizon)
+        final_preds = torch.zeros((batch_size, horizon), device=self.device)
+
+        device = self.device
+
+        '''
+        PT: 
+            - preds_by_expert: acumulador de predições por expert:
+            - formato: (num_experts, batch_size, horizon)
+            - inicializa com zeros; vamos preencher apenas as linhas correspondentes às amostras que escolheram o expert
+        
+        EN:
+            - preds_by_expert: Accumulator of predictions by expert:
+            - format: (num_experts, batch_size, horizon)
+            - initializes with zeros; we will fill only the lines corresponding to the samples that chose the expert
+        '''
+        preds_by_expert = torch.zeros((self.num_experts, batch_size, horizon), device=device)
+
+        # PT: Para cada expert, coletamos as amostras do batch que o incluíram no top-k; chamamos o expert **uma vez** com o sub-batch (vetorizado) — evita chamar expert N vezes.
+        # EN: For each expert, we collect the samples from the batch that included it in the top-k; we call the expert **once** with the (vectorized) sub-batch — avoid calling expert N times.
+        for expert_idx in range(self.num_experts):
+            mask = (topk_idx  == expert_idx).any(dim=1)
+            idxs = torch.nonzero(mask, as_tuple=False).squeeze(1)
+            if idxs.numel() == 0:
+                continue
+
+            xb_for_expert = x_device[idxs].clone()
+            expert_key = self.expert_keys[expert_idx]
+            expert_module = self.experts[expert_key]
+
+            with torch.no_grad():
+                out = expert_module(xb_for_expert, prediction_length=horizon)
+
+            out = out.to(device).float().detach()
+            preds_by_expert[expert_idx, idxs, :] = out
+
+        # -----------------------------------------
+        # SOFT
+        # -----------------------------------------
+        # preds_by_expert: (E, B, H)
+        # probs: (B, E)
+
+        expert_preds = preds_by_expert.permute(1, 0, 2)  # (B, E, H)
+        final_preds = torch.einsum("be,beh->bh", probs, expert_preds)
+
+        if verbose:
+            for i in range(batch_size):
+
+                idxs = topk_idx[i]
+
+                chosen_list = idxs.tolist()
+                selected_names = [self.expert_keys[int(j)] for j in chosen_list]
+                selected_weights = probs[i, chosen_list].tolist()
+
+                selected_str = ", ".join(
+                    f"{name}: {float(w):.3f}"
+                    for name, w in zip(selected_names, selected_weights)
+                )
+
+                not_selected_idx = [j for j in range(self.num_experts) if j not in chosen_list]
+                not_selected_names = [self.expert_keys[j] for j in not_selected_idx]
+                not_selected_weights = [float(probs[i, j].item()) for j in not_selected_idx]
+
+                not_selected_str = ", ".join(
+                    f"{name}: {w:.3f}"
+                    for name, w in zip(not_selected_names, not_selected_weights)
+                )
+
+                print(
+                    f"Sample {i}: "
+                    f"Selected -> {selected_str}; "
+                    f"Not selected -> {not_selected_str}"
+                )
+
+        return final_preds, probs_clean, topk_idx
+
+    def save(self, path):
+        """
+        PT: Salva apenas o estado do gating e metadados necessários para reconstruir o roteador.
+            OBS: não salvamos checkpoints dos experts grandes (assumimos que serão re-instanciados.
+        EN: Saves only the gating state and metadata needed to rebuild the router.
+            OBS: We do not save checkpoints for large experts (we assume they will be reinstantiated via EXPERT_CLASS_MAP after loading); 
+        """
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        torch.save({
+            "gating_state": self.gating.state_dict(),
+            "expert_keys": self.expert_keys,
+            "num_experts": self.num_experts
+        }, path)
+        print(f"Model saved in {path}")
+
+    @staticmethod
+    def load(path, context_length, device="cpu"):
+        """
+        PT: Reconstrói MoERouter a partir do checkpoint. Requer que EXPERT_CLASS_MAP esteja disponível
+            e que a mesma ordem de chaves seja usada.
+        
+        EN: Rebuilds the MoERouter from the checkpoint. Requires EXPERT_CLASS_MAP to be available
+            and the same key order to be used.
+        """
+        ckpt = torch.load(path, map_location=device, weights_only=True)
+        model = MoERouter(context_length=context_length, device=device)
+        model.gating.load_state_dict(ckpt["gating_state"])
+        model.to(device)
+        model.eval()
+        return model
+
+# -------------------
+# Train and Save Model
+# ------------------
+def train_and_save(data_path, context_length, horizon, save_path, use_noise, top_k=2, norm="std", device="cpu",
+                   batch_size=32, epochs=20, lr=1e-4, seed=0, detect_anomaly=False):
+    # =============================================================================
+    # PT: Treina apenas o roteador (gating) do modelo MoERouter usando uma base de 
+    #     séries temporais e salva o modelo treinado. Os experts permanecem 
+    #     congelados (zero-shot). 
+    #     O treinamento é feito em batches com função de perda Huber e um 
+    #     regularizador de balanceamento simples para evitar colapso de roteamento.
+    #
+    #     - `data_path`: caminho para arquivo JSONL com as séries temporais
+    #     - `context_length`: número de pontos de entrada usados como contexto
+    #     - `horizon`: horizonte de previsão (número de passos futuros a prever)
+    #     - `save_path`: caminho para salvar o modelo treinado (ex: "checkpoints/model.pt")
+    #     - `top_k:` Número de especialistas a serem selecionados por amostra.
+    #     - `device`: dispositivo ("cpu" ou "cuda")
+    #     - `batch_size`: tamanho do lote para treino
+    #     - `epochs`: número de épocas de treinamento
+    #     - `lr`: taxa de aprendizado do otimizador
+    #     - `seed`: semente aleatória para reprodutibilidade
+    #     - `use_noise`: Se definido como True, aplicará ruído durante o treinamento do modelo.
+    #     - `detect_anomaly`: ativa debug de gradientes (mais lento, útil para depuração)
+    #
+    #     Saída: modelo MoERouter treinado (instância do objeto)
+    #
+    # EN: Trains only the router (gating) of the MoERouter model using a dataset of 
+    #     time series and saves the trained model. The experts remain frozen 
+    #     (zero-shot). 
+    #     Training is performed in batches with Huber loss and a simple 
+    #     load-balancing regularizer to avoid routing collapse.
+    #
+    #     - `data_path`: path to JSONL file with time series
+    #     - `context_length`: number of input points used as context
+    #     - `horizon`: forecast horizon (number of future steps to predict)
+    #     - `save_path`: path to save the trained model (e.g., "checkpoints/model.pt")
+    #     - `top_k:` number of experts to pick per sample.
+    #     - `device`: device ("cpu" or "cuda")
+    #     - `batch_size`: training batch size
+    #     - `epochs`: number of training epochs
+    #     - `lr`: learning rate for the optimizer
+    #     - `seed`: random seed for reproducibility
+    #     - `use_noise`: If set to True, it will apply noise during model training.
+    #     - `detect_anomaly`: enables gradient anomaly detection (slower, debug only)
+    #
+    #     Output: trained MoERouter model (object instance)
+    # =============================================================================
+
+    #===============================================
+    #   STARTING TRAINING
+    #===============================================
+    log_dir = get_log_dir_from_save_path(save_path)
+    csv_experts = log_dir / "experts_weights_train.csv"
+
+    use_noise = True if use_noise=="true" else False
+
+    if detect_anomaly:
+        torch.autograd.set_detect_anomaly(True)
+
+    random.seed(seed)
+    torch.manual_seed(seed)
+    
+    if "cuda" in device:
+        torch.cuda.manual_seed_all(seed)
+
+    ds = load_jsonl(data_path)
+
+    train_dataset = TimeSeriesDataset(ds, context_length, horizon)
+
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
+
+    model = MoERouter(context_length=context_length, device=device)
+    model.to(device)
+
+    opt = torch.optim.Adam(model.gating.parameters(), lr=lr)
+    loss_fn = nn.HuberLoss(delta=2.0, reduction='mean')
+
+    early_stopping = EarlyStopping(patience=10)
+
+    for epoch in range(epochs):
+
+        model.train()
+        train_loss = 0
+
+        for data, target in train_loader:
+            data = data.to(device)
+            target = target.to(device)
+
+            if norm == "std":
+                # -------------------------
+                # Standard Scaler
+                # -------------------------
+                mean = data.mean(dim=1, keepdim=True)     
+                std = data.std(dim=1, keepdim=True)       
+                data_norm = (data - mean) / (std + 1e-8)
+                target_norm = (target - mean) / (std + 1e-8)
+            
+            else:
+                # -------------------------
+                # Min-Max
+                # -------------------------
+                data_min = data.min(dim=1, keepdim=True).values
+                data_max = data.max(dim=1, keepdim=True).values
+                data_norm = (data - data_min) / (data_max - data_min + 1e-8)
+                target_norm = (target - data_min) / (data_max - data_min + 1e-8)
+
+            # -------------------------------------------------
+            # Forward
+            # -------------------------------------------------
+            output = model(data_norm, horizon=horizon, dir_csv_experts=csv_experts, use_noise=use_noise, top_k=top_k)
+            
+            # -------------------------------------------------
+            # Loss
+            # -------------------------------------------------
+            preds_norm, probs_clean, topk_idx = output
+
+            loss = moe_custom_loss(
+                preds=preds_norm,
+                targets=target_norm,
+                probs_clean=probs_clean,
+                topk_idx=topk_idx,
+                pred_loss_fn=loss_fn,
+                alpha=0.02, 
+            )
+
+            # -------------------------------------------------
+            # Backprop
+            # -------------------------------------------------
+            opt.zero_grad()
+            loss.backward()
+            opt.step()
+
+            train_loss += loss.item() * data.size(0)
+        
+        train_loss /= len(train_loader.dataset)
+
+        print(f"Epoch [{epoch+1}/{epochs}] | Train Loss: {train_loss:.6f}")
+
+        # Save Epoch | Train Loss
+        csv_loss = log_dir / "train_loss.csv"
+        append_train_loss(
+            csv_loss,
+            epoch=epoch + 1,
+            train_loss=train_loss
+        )
+
+
+        early_stopping(train_loss, model)
+
+        if early_stopping.early_stop:
+            print("Early stopping")
+            break
+    
+    early_stopping.load_best_model(model)
+
+    # -------------------
+    # Save
+    # ------------------
+    model.save(save_path)
+    print(f'Saving model to {save_path}')
+
+    return model
+# -------------------
+# Predict model
+# ------------------
+def predict_from_model(model_path, series, context_length, horizon, top_k, use_noise, device="cpu", verbose=True):
+    # =============================================================================
+    # PT: Carrega um modelo salvo do tipo MoERouter e realiza a previsão para uma
+    #     ou várias séries temporais fornecidas. A série é cortada para o tamanho
+    #     do contexto e passada ao modelo junto com o horizonte de previsão.
+    #     - `model_path`: caminho do modelo salvo (ex: "checkpoints/model.pt")
+    #     - `series`: tensor 1D (ex: torch.Size([462])) ou 2D (ex: torch.Size([8, 398]))
+    #     - `context_length`: número de pontos usados como contexto (ex: 5)
+    #     - `horizon`: número de passos a serem previstos (ex: 2)
+    #     - `top_k:` Número de especialistas a serem selecionados por amostra.
+    #     - `use_noise`: Se definido como True, aplicará ruído durante o treinamento do modelo.
+    #     Saída: tensor 2D com previsões (ex: torch.Size([1, horizon]) ou [batch, horizon])
+    #
+    # EN: Loads a saved MoERouter model and performs prediction for one or more
+    #     time series. Each series is trimmed to the context length and passed
+    #     to the model along with the forecast horizon.
+    #     - `model_path`: path to saved model (e.g., "checkpoints/model.pt")
+    #     - `series`: 1D tensor (e.g., torch.Size([462])) or 2D (e.g., torch.Size([8, 398]))
+    #     - `context_length`: number of points used as context (e.g., 5)
+    #     - `horizon`: number of steps to forecast (e.g., 2)
+    #     - `top_k:` number of experts to pick per sample.
+    #     - `use_noise`: If set to True, it will apply noise during model training.
+    #     Output: 2D tensor with predictions (ex: torch.Size([1, horizon]) or [batch, horizon])
+    # =============================================================================
+    log_dir = get_log_dir_from_save_path(model_path)
+    csv_experts = log_dir / "experts_weights_pred.csv"
+
+    model = MoERouter.load(model_path, context_length=context_length, device=device)
+
+    series = torch.as_tensor(series, dtype=torch.float32)
+
+    use_noise = True if use_noise=="true" else False
+
+
+    if not isinstance(horizon, int) or horizon < 1:
+        raise ValueError("`horizon` must be an int >= 1.")
+
+    # Case 1D
+    if series.dim() == 1:
+        if len(series) < context_length:
+            raise ValueError("Series too short for the requested context")
+        x = series[-context_length:].unsqueeze(0)  # (1, context_length)
+        with torch.no_grad():
+            out = model(x=x, horizon=horizon, dir_csv_experts=csv_experts, top_k=top_k, use_noise=use_noise, verbose=verbose)
+        return out[0].cpu()  # (1, horizon)
+
+    # Case 2D
+    elif series.dim() == 2:
+        outs = []
+        for row in series:
+            if len(row) < context_length:
+                raise ValueError("One of the series is too short for the requested context")
+            x = row[-context_length:].unsqueeze(0)  # (1, context_length)
+            with torch.no_grad():
+                out = model(x=x, horizon=horizon, dir_csv_experts=csv_experts, top_k=top_k, use_noise=use_noise, verbose=verbose)
+            outs.append(out[0].cpu())
+        return torch.cat(outs, dim=0)  # (batch, horizon)
+
+    else:
+        raise ValueError(f"`series` must be 1D or 2D, but got shape {tuple(series.shape)}")
