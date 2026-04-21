@@ -33,7 +33,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 os.environ["NCCL_P2P_DISABLE"] = "1"
 os.environ["NCCL_IB_DISABLE"] = "1"
 
-N_CORES = 20
+N_CORES = 10
 device  = "cuda"
 
 # ======================================
@@ -41,20 +41,20 @@ device  = "cuda"
 # ======================================
 TRAIN_BASE_PATH = "../benchmark_prepared_train"
 VAL_BASE_PATH   = "../benchmark_prepared_val"
-TRAINED_MODELS  = "trained_models"
+TRAINED_MODELS  = "trained_models_benchmark_filtered"
 
 # ======================================
 # DATASET CONFIG
 # ======================================
 DATASETS_TRAIN = {
-    "cif_2016":        {"subfolder": "horizon_12", "horizon": 12},
-    "etth":            {"subfolder": "horizon_36", "horizon": 36},
-    "hospital":        {"subfolder": "horizon_12", "horizon": 12},
-    "m3_monthly":      {"subfolder": "horizon_18", "horizon": 18},
-    "m4_monthly":      {"subfolder": "horizon_18", "horizon": 18},
-    "nn5_weekly":      {"subfolder": "horizon_8",  "horizon": 8},
-    "tourism_monthly": {"subfolder": "horizon_24", "horizon": 24},
-    "weather":         {"subfolder": "horizon_36", "horizon": 36},
+    "cif_2016_filtered":        {"subfolder": "horizon_12", "horizon": 12},
+    "etth_filtered":            {"subfolder": "horizon_36", "horizon": 36},
+    "hospital_filtered":        {"subfolder": "horizon_12", "horizon": 12},
+    "m3_monthly_filtered":      {"subfolder": "horizon_18", "horizon": 18},
+    "m4_monthly_filtered":      {"subfolder": "horizon_18", "horizon": 18},
+    "nn5_weekly_filtered":      {"subfolder": "horizon_8",  "horizon": 8},
+    "tourism_monthly_filtered": {"subfolder": "horizon_24", "horizon": 24},
+    "weather_filtered":         {"subfolder": "horizon_36", "horizon": 36},
 }
 
 # ======================================
