@@ -287,7 +287,7 @@ def process_dataset(state_code, year, context_length, prediction_length):
     output_chronos_bolt_base = out * std_vals + mean_vals
     times_dict["Chronos-Bolt-Base"] = round(time.time() - start, 4)
 
-    # -------- My-MoE --------
+    # -------- FM-MoE --------
     start = time.time()
     model_path = f"trained_models/horizon_{prediction_length}/excluding_{state_code}/model_excluding_{state_code}_{year}.pt"
     if not os.path.exists(model_path):
@@ -301,7 +301,7 @@ def process_dataset(state_code, year, context_length, prediction_length):
             device="cpu"
         )
         output_mymoe = out * std_vals + mean_vals
-    times_dict["My-MoE"] = round(time.time() - start, 4)
+    times_dict["FM-MoE"] = round(time.time() - start, 4)
 
     model_outputs = {
         "Moirai-Small": output_moirai_small,
@@ -320,7 +320,7 @@ def process_dataset(state_code, year, context_length, prediction_length):
         "Chronos-Bolt-Mini": output_chronos_bolt_mini,
         "Chronos-Bolt-Small": output_chronos_bolt_small,
         "Chronos-Bolt-Base": output_chronos_bolt_base,
-        "My-MoE": output_mymoe
+        "FM-MoE": output_mymoe
     }
 
     foundation_keys = ["Moirai-Small",
