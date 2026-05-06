@@ -289,7 +289,7 @@ class MoERouter(nn.Module):
 # Train and Save Model
 # ------------------
 def train_and_save(data_path, context_length, horizon, save_path, use_noise, top_k=2, norm="std", device="cpu",
-                   batch_size=32, epochs=20, lr=1e-4, seed=0, detect_anomaly=False):
+                   batch_size=64, epochs=20, lr=1e-4, seed=0,):
     # =============================================================================
     # PT: Treina apenas o roteador (gating) do modelo MoERouter usando uma base de 
     #     séries temporais e salva o modelo treinado. Os experts permanecem 
@@ -308,7 +308,6 @@ def train_and_save(data_path, context_length, horizon, save_path, use_noise, top
     #     - `lr`: taxa de aprendizado do otimizador
     #     - `seed`: semente aleatória para reprodutibilidade
     #     - `use_noise`: Se definido como True, aplicará ruído durante o treinamento do modelo.
-    #     - `detect_anomaly`: ativa debug de gradientes (mais lento, útil para depuração)
     #
     #     Saída: modelo MoERouter treinado (instância do objeto)
     #
@@ -342,9 +341,6 @@ def train_and_save(data_path, context_length, horizon, save_path, use_noise, top
 
     use_noise = True if use_noise=="true" else False
 
-    if detect_anomaly:
-        torch.autograd.set_detect_anomaly(True)
-
     random.seed(seed)
     torch.manual_seed(seed)
     
@@ -353,7 +349,7 @@ def train_and_save(data_path, context_length, horizon, save_path, use_noise, top
 
     ds = load_jsonl(data_path)
 
-    train_dataset = TimeSeriesDataset(ds, context_length, horizon)
+    train_dataset = TimeSeriesDataset(ds, horizon)
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
 

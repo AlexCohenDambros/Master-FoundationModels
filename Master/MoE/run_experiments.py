@@ -24,7 +24,7 @@ from analysis_trained_models import run_analysis
 import numpy as np
 
 from statsforecast import StatsForecast
-from statsforecast.models import AutoETS, AutoARIMA
+from statsforecast.models import AutoETS, AutoARIMA, SeasonalNaive
 
 from darts.models import NBEATSModel
 from darts import TimeSeries
@@ -306,6 +306,35 @@ def run_full_experiment_pipeline(experiment_name: str, path_trained_models: str 
 
 
         # -----------------------------
+        # SeasonalNaive
+        # -----------------------------
+        start = time.time()
+
+        preds = []
+        for i in range(n_series):
+
+            series = train_cpu[i]
+
+            df = pd.DataFrame({
+                "unique_id": "series",
+                "ds": np.arange(len(series)),
+                "y": series
+            })
+
+            sf = StatsForecast(
+                models=[SeasonalNaive(season_length=12)],
+                freq=1,
+                n_jobs=1
+            )
+
+            forecast = sf.forecast(df=df, h=prediction_length)
+            preds.append(forecast["SeasonalNaive"].values)
+
+        output_seasonal_naive = torch.tensor(np.array(preds), device=device)
+        times_dict["SeasonalNaive"] = round(time.time() - start, 4)
+
+
+        # -----------------------------
         # N-BEATS
         # -----------------------------
         start = time.time()
@@ -480,9 +509,10 @@ def run_full_experiment_pipeline(experiment_name: str, path_trained_models: str 
             "Moirai":   output_moirai_small,
             "Chronos":  output_chronos_bolt_small,
             "FM-MoE":   output_mymoe,
-            "AutoETS":      output_autoets,
-            "AutoARIMA":    output_autoarima,
-            "NBEATS":       output_nbeats,
+            "AutoETS":        output_autoets,
+            "AutoARIMA":      output_autoarima,
+            "SeasonalNaive":  output_seasonal_naive,
+            "NBEATS":         output_nbeats,
             "RandomForest": output_rf,
             "XGBRegressor": output_xgb,
             "PatchTST":     output_patchtst,
