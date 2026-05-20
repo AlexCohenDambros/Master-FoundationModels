@@ -116,6 +116,8 @@ def run_full_experiment_pipeline(
     def process_dataset(dataset_name, cfg, input_list, target_list):
         horizon        = cfg["horizon"]
         context_length = cfg["context_length"]
+        print("context_length:", context_length)
+        print("horizon:", horizon)
 
         tensor_train = torch.tensor(input_list, dtype=torch.float32, device=device)
         tensor_test  = torch.tensor(target_list, dtype=torch.float32, device=device)
@@ -132,6 +134,7 @@ def run_full_experiment_pipeline(
         # ----------------------------------
         # Time-MoE
         # ----------------------------------
+        print("Start Time-MoE...")
         start = time.time()
         model = AutoModelForCausalLM.from_pretrained(
             "Maple728/TimeMoE-200M", trust_remote_code=True, device_map=device
@@ -144,6 +147,7 @@ def run_full_experiment_pipeline(
         # ----------------------------------
         # Timer
         # ----------------------------------
+        print("Start Timer...")
         tensor_train_scaled = tensor_train_scaled.squeeze(-1)
         tensor_train_scaled = tensor_train_scaled.to(device)
 
@@ -164,6 +168,7 @@ def run_full_experiment_pipeline(
         # ----------------------------------
         # TimesFM
         # ----------------------------------
+        print("Start TimesFM...")
         start = time.time()
         model = timesfm.TimesFm(
             hparams=timesfm.TimesFmHparams(
@@ -190,6 +195,7 @@ def run_full_experiment_pipeline(
         # ----------------------------------
         # Moirai-Small
         # ----------------------------------
+        print("Start Moirai...")
         start = time.time()
         model = MoiraiForecast(
             module=MoiraiModule.from_pretrained("Salesforce/moirai-1.1-R-small"),
@@ -215,6 +221,7 @@ def run_full_experiment_pipeline(
         # ----------------------------------
         # Chronos-Bolt-Small
         # ----------------------------------
+        print("Start Chronos...")
         start = time.time()
         model = BaseChronosPipeline.from_pretrained(
             "amazon/chronos-bolt-small", device_map=device, torch_dtype=torch.bfloat16
@@ -228,6 +235,7 @@ def run_full_experiment_pipeline(
         # ----------------------------------
         # FM-MoE
         # ----------------------------------
+        print("Start FM-MoE...")
         start = time.time()
         model_path = os.path.join(path_trained_models, dataset_name, f"{experiment_name}.pt")
 
@@ -261,6 +269,7 @@ def run_full_experiment_pipeline(
         # ----------------------------------
         # AutoETS
         # ----------------------------------
+        print("Start AutoETS...")
         start = time.time()
         preds = []
         for i in range(n_series):
@@ -279,6 +288,7 @@ def run_full_experiment_pipeline(
         # ----------------------------------
         # AutoARIMA
         # ----------------------------------
+        print("Start AutoARIMA...")
         start = time.time()
         preds = []
         for i in range(n_series):
@@ -297,6 +307,7 @@ def run_full_experiment_pipeline(
         # ----------------------------------
         # SeasonalNaive
         # ----------------------------------
+        print("Start SeasonalNaive...")
         start = time.time()
         preds = []
         for i in range(n_series):
@@ -315,6 +326,7 @@ def run_full_experiment_pipeline(
         # ----------------------------------
         # N-BEATS
         # ----------------------------------
+        print("Start N-BEATS...")
         start = time.time()
         preds = []
         for i in range(n_series):
@@ -335,6 +347,7 @@ def run_full_experiment_pipeline(
         # ----------------------------------
         # Random Forest
         # ----------------------------------
+        print("Start RF...")
         start = time.time()
         preds = []
         for i in range(n_series):
@@ -361,6 +374,7 @@ def run_full_experiment_pipeline(
         # ----------------------------------
         # XGBoost
         # ----------------------------------
+        print("Start XGBoost...")
         start = time.time()
         preds = []
         for i in range(n_series):
@@ -387,6 +401,9 @@ def run_full_experiment_pipeline(
         # ----------------------------------
         # PatchTST
         # ----------------------------------
+        nf_input_size = max(8, min(context_length // 2, context_length - horizon - 1))
+
+        print(f"Start PatchTST... (input_size={nf_input_size}, h={horizon})")
         start = time.time()
         panel_df = pd.DataFrame({
             "unique_id": np.repeat(np.arange(n_series), context_length),
@@ -394,10 +411,10 @@ def run_full_experiment_pipeline(
             "y":         train_cpu.flatten(),
         })
         nf_pt = NeuralForecast(
-            models=[NF_PatchTST(input_size=context_length, h=horizon, max_steps=100, scaler_type="standard")],
+            models=[NF_PatchTST(input_size=nf_input_size, h=horizon, max_steps=100)],
             freq=1,
         )
-        nf_pt.fit(panel_df)
+        nf_pt.fit(panel_df, val_size=0)
         fc_pt = nf_pt.predict()
         if not isinstance(fc_pt, pd.DataFrame):
             fc_pt = fc_pt.to_pandas()
@@ -411,12 +428,13 @@ def run_full_experiment_pipeline(
         # ----------------------------------
         # iTransformer
         # ----------------------------------
+        print(f"Start iTransformer... (input_size={nf_input_size}, h={horizon})")
         start = time.time()
         nf_it = NeuralForecast(
-            models=[NF_iTransformer(input_size=context_length, h=horizon, n_series=n_series, max_steps=100, scaler_type="standard")],
+            models=[NF_iTransformer(input_size=nf_input_size, h=horizon, n_series=n_series, max_steps=100)],
             freq=1,
         )
-        nf_it.fit(panel_df)
+        nf_it.fit(panel_df, val_size=0)
         fc_it = nf_it.predict()
         if not isinstance(fc_it, pd.DataFrame):
             fc_it = fc_it.to_pandas()
