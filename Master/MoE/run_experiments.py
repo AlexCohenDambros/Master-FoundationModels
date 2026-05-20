@@ -465,7 +465,7 @@ def run_full_experiment_pipeline(experiment_name: str, path_trained_models: str 
             "y": train_cpu.flatten(),
         })
         nf_pt = NeuralForecast(
-            models=[NF_PatchTST(input_size=context_length, h=prediction_length, max_steps=100, scaler_type="standard")],
+            models=[NF_PatchTST(input_size=12, h=prediction_length, max_steps=100, scaler_type="standard")],
             freq=1,
         )
         nf_pt.fit(panel_df)
@@ -485,7 +485,7 @@ def run_full_experiment_pipeline(experiment_name: str, path_trained_models: str 
         # -----------------------------
         start = time.time()
         nf_it = NeuralForecast(
-            models=[NF_iTransformer(input_size=context_length, h=prediction_length, n_series=n_series, max_steps=100, scaler_type="standard")],
+            models=[NF_iTransformer(input_size=12, h=prediction_length, n_series=n_series, max_steps=100, scaler_type="standard")],
             freq=1,
         )
         nf_it.fit(panel_df)

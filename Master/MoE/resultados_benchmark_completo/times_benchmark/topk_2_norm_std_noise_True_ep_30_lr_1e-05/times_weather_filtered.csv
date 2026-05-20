@@ -1,0 +1,15 @@
+Modelo,Tempo (s)
+Time-MoE200M,6.537
+Timer,2.2538
+TimesFM,8.0009
+Moirai-Small,3.297
+Chronos-Bolt-Small,2.3435
+FM-MoE,652.2082
+AutoETS,3.6582
+AutoARIMA,55.5153
+SeasonalNaive,0.3672
+NBEATS,95.6981
+RandomForest,193.3583
+XGBRegressor,188.6772
+PatchTST,2.3077
+iTransformer,2.2016
