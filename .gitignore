@@ -6,6 +6,12 @@ Time-MoE/model_time_moe4.py
 
 *.idea
 
+Master/benchmark_prepared_test/m5_filtered/horizon_28/*
+Master/benchmark_prepared_val/m5_filtered/horizon_28/*
+Master/benchmark_prepared_train/m5_filtered/horizon_28/*
+
+database/m5/datasets/*
+
 Master/MoE/bayesian_search_results.json
 Master/MoE/bayesian_search.db
 Master/MoE/*/*.txt
