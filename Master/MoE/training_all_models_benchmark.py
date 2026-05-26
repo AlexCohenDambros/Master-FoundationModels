@@ -23,14 +23,16 @@ device = "cuda"
 # DATASET REGISTRY
 # ======================================
 DATASETS = {
-    "cif_2016_filtered":        {"subfolder": "horizon_12",  "horizon": 12, "context_length": 96},
-    "etth_filtered":            {"subfolder": "horizon_36",  "horizon": 36, "context_length": 102},
-    "hospital_filtered":        {"subfolder": "horizon_12",  "horizon": 12, "context_length": 60},
-    "m3_monthly_filtered":      {"subfolder": "horizon_18",  "horizon": 18, "context_length": 98},
-    "m4_monthly_filtered":      {"subfolder": "horizon_18",  "horizon": 18, "context_length": 51},
-    "nn5_weekly_filtered":      {"subfolder": "horizon_8",   "horizon": 8,  "context_length": 97},
-    "tourism_monthly_filtered": {"subfolder": "horizon_24",  "horizon": 24, "context_length": 285},
-    "weather_filtered":         {"subfolder": "horizon_36",  "horizon": 36, "context_length": 454},
+    # "cif_2016_filtered":        {"subfolder": "horizon_12",  "horizon": 12, "context_length": 96},
+    # "etth_filtered":            {"subfolder": "horizon_36",  "horizon": 36, "context_length": 102},
+    # "hospital_filtered":        {"subfolder": "horizon_12",  "horizon": 12, "context_length": 60},
+    # "m3_monthly_filtered":      {"subfolder": "horizon_18",  "horizon": 18, "context_length": 98},
+    # "m4_monthly_filtered":      {"subfolder": "horizon_18",  "horizon": 18, "context_length": 51},
+    # "nn5_weekly_filtered":      {"subfolder": "horizon_8",   "horizon": 8,  "context_length": 97},
+    # "tourism_monthly_filtered": {"subfolder": "horizon_24",  "horizon": 24, "context_length": 285},
+    # "weather_filtered":         {"subfolder": "horizon_36",  "horizon": 36, "context_length": 454},
+    "fred_md_filtered":           {"subfolder": "horizon_12",  "horizon": 12, "context_length": 704},
+    "m5_filtered":                {"subfolder": "horizon_28",  "horizon": 28, "context_length": 1913},
 }
 
 # ======================================
