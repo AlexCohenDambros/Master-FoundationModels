@@ -4,13 +4,9 @@ Time-MoE/model_time_moe2.py
 Time-MoE/model_time_moe3.py
 Time-MoE/model_time_moe4.py
 
-*.idea
+.idea/
 
-Master/benchmark_prepared_test/m5_filtered/horizon_28/*
-Master/benchmark_prepared_val/m5_filtered/horizon_28/*
-Master/benchmark_prepared_train/m5_filtered/horizon_28/*
-
-database/m5/datasets/*
+database/m5/datasets/**
 
 Master/MoE/bayesian_search_results.json
 Master/MoE/bayesian_search.db
@@ -19,11 +15,10 @@ Master/MoE/NovosExp/
 Master/MoE/Paper/
 Master/MoE/Paper_old/
 
-*png
-*.json
+*.png
 *.pt
 
-.venv
+.venv/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
