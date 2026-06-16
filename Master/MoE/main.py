@@ -20,7 +20,7 @@ def main():
     if args.mode == "train":
         if not args.data:
             raise ValueError("Precisa fornecer --data no modo train")
-        train_and_save(args.data, args.context_length, args.horizon, args.save_path, top_k=args.top_k, epochs=args.epochs, lr=args.lr, use_noise=args.use_noise, device=args.device)
+        train_and_save(args.data, args.context_length, args.horizon, args.save_path, top_k=args.top_k, norm=args.norm, epochs=args.epochs, lr=args.lr, use_noise=args.use_noise, device=args.device)
 
     elif args.mode == "predict":
         if not args.series:

@@ -18,7 +18,9 @@ from setup.utils.custom_loss_function import moe_custom_loss
 
 os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
 os.environ["TRANSFORMERS_VERBOSITY"] = "error"
-os.environ["CUDA_VISIBLE_DEVICES"] = "3"
+# setdefault: respeita o CUDA_VISIBLE_DEVICES já definido pelo orquestrador
+# (training_all_models.py o injeta no env do subprocesso de treino).
+os.environ.setdefault("CUDA_VISIBLE_DEVICES", "0")
 
 EXPERT_CLASS_MAP = {
     "Moirai": MoiraiExpert,

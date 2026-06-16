@@ -1,12 +1,27 @@
 # ======================================
-# PARALLEL CONFIGURATION
+# ENVIRONMENT CONFIGURATION
+# --------------------------------------
+# DEVE vir antes de importar torch/numpy para que os tetos de thread
+# (OMP/MKL/BLAS) sejam respeitados. Usamos setdefault para que, quando este
+# módulo for importado por training_all_models.py, os valores definidos lá
+# (CUDA_VISIBLE_DEVICES e threads) tenham prioridade.
 # ======================================
-from joblib import Parallel, delayed
+import os
+
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+os.environ["WANDB_MODE"] = "disabled"
+os.environ.setdefault("CUDA_VISIBLE_DEVICES", "0")
+os.environ["NCCL_P2P_DISABLE"] = "1"
+os.environ["NCCL_IB_DISABLE"] = "1"
+
+for _v in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS",
+           "NUMEXPR_NUM_THREADS", "VECLIB_MAXIMUM_THREADS"):
+    os.environ.setdefault(_v, "5")
 
 # ======================================
 # IMPORTS
 # ======================================
-import os
+from joblib import Parallel, delayed
 import json
 import time
 import torch
@@ -36,15 +51,6 @@ from neuralforecast import NeuralForecast
 from neuralforecast.models import PatchTST as NF_PatchTST, iTransformer as NF_iTransformer
 
 # ======================================
-# ENVIRONMENT CONFIGURATION
-# ======================================
-os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
-os.environ["WANDB_MODE"] = "disabled"
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-os.environ["NCCL_P2P_DISABLE"] = "1"
-os.environ["NCCL_IB_DISABLE"] = "1"
-
-# ======================================
 # GENERAL SETTINGS
 # ======================================
 file_path = "../dataset_global/dataset_global.jsonl"
@@ -59,11 +65,10 @@ base_path = "../all_datasets_global_by_years"
 # ======================================
 # MAIN PIPELINE
 # ======================================
-def run_full_experiment_pipeline(experiment_name: str, path_trained_models: str = "trained_models", top_k:int = 2, use_noise = True):
+def run_full_experiment_pipeline(experiment_name: str, path_trained_models: str = "trained_models", top_k:int = 2, use_noise = True, n_cores: int = 2, norm: str = "std"):
 
     device = "cuda"
 
-    N_CORES = 5
     debug_state = None  # None or "sp"
 
     results_root = f"results_by_state_year/{experiment_name}"
@@ -227,16 +232,30 @@ def run_full_experiment_pipeline(experiment_name: str, path_trained_models: str 
             f"{experiment_name}_{str(year)}.pt"
         )
 
+        # O FM-MoE deve usar a MESMA normalização aplicada no treino (`norm`).
+        # Os baselines acima usam `std` como pré-processamento fixo da avaliação;
+        # aqui ajustamos APENAS a entrada/saída do FM-MoE para casar com o treino.
+        # Forma unificada: serie_norm = (x - offset) / scale ; denorm = out*scale + offset
+        if norm == "minmax":
+            fmmoe_offset = tensor_train.min(dim=1, keepdim=True).values
+            fmmoe_scale = tensor_train.max(dim=1, keepdim=True).values - fmmoe_offset
+            fmmoe_scale[fmmoe_scale == 0] = 1e-8
+        else:  # "std"
+            fmmoe_offset = mean_vals
+            fmmoe_scale = std_vals
+
+        fmmoe_series = (tensor_train - fmmoe_offset) / fmmoe_scale
+
         out = predict_from_model(
             model_path=model_path,
-            series=tensor_train_scaled,
+            series=fmmoe_series,
             horizon=prediction_length,
             context_length=context_length,
             top_k=top_k,
             use_noise="true" if use_noise else "false",
             device=device,
         )
-        output_mymoe = out.to(device) * std_vals + mean_vals
+        output_mymoe = out.to(device) * fmmoe_scale + fmmoe_offset
 
         times_dict["FM-MoE"] = round(time.time() - start, 4)
 
@@ -431,7 +450,8 @@ def run_full_experiment_pipeline(experiment_name: str, path_trained_models: str 
             model = XGBRegressor(
                 n_estimators=200,
                 max_depth=6,
-                learning_rate=0.05
+                learning_rate=0.05,
+                n_jobs=int(os.environ.get("OMP_NUM_THREADS", "5")),
             )
 
             model.fit(X, y)
@@ -575,6 +595,25 @@ def run_full_experiment_pipeline(experiment_name: str, path_trained_models: str 
         results_path,
         times_path,
     ):
+        # Limita as threads deste worker (roda em processo separado no loky).
+        torch.set_num_threads(int(os.environ.get("OMP_NUM_THREADS", "5")))
+
+        results_file = os.path.join(
+            results_path,
+            f"results_{state_code}_{year}.csv",
+        )
+        times_file = os.path.join(
+            times_path,
+            f"times_{state_code}_{year}.csv",
+        )
+
+        if os.path.isfile(results_file) and os.path.isfile(times_file):
+            print(
+                f"[SKIP] {state_code.upper()} - {year} "
+                f"- Horizon {horizon} — results already exist"
+            )
+            return None
+
         print(
             f"Processing {state_code.upper()} - {year} "
             f"- Horizon {horizon} - Context {context_length}"
@@ -595,15 +634,6 @@ def run_full_experiment_pipeline(experiment_name: str, path_trained_models: str 
                 )
                 return None
 
-            results_file = os.path.join(
-                results_path,
-                f"results_{state_code}_{year}.csv",
-            )
-            times_file = os.path.join(
-                times_path,
-                f"times_{state_code}_{year}.csv",
-            )
-
             df_results.to_csv(results_file, index=False)
             df_times.to_csv(times_file, index=False)
 
@@ -620,6 +650,14 @@ def run_full_experiment_pipeline(experiment_name: str, path_trained_models: str 
                 f"- Horizon {horizon}: {e}"
             )
             return None
+
+        finally:
+            # Libera memória da GPU única entre jobs (mesmo em caso de erro),
+            # evitando acúmulo que levaria a OOM/travamento.
+            import gc
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
     # ======================================
     # MAIN LOOP (PARALLEL)
@@ -665,7 +703,7 @@ def run_full_experiment_pipeline(experiment_name: str, path_trained_models: str 
                 )
 
         Parallel(
-            n_jobs=N_CORES,
+            n_jobs=n_cores,
             backend="loky",
             verbose=10,
         )(
