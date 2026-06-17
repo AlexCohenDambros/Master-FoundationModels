@@ -35,7 +35,6 @@ from uni2ts.model.moirai import MoiraiForecast, MoiraiModule
 from setup.models.modeling_model import predict_from_model
 
 from sklearn.metrics import mean_absolute_percentage_error
-from analysis_trained_models import run_analysis
 import numpy as np
 
 from statsforecast import StatsForecast
@@ -76,8 +75,6 @@ def run_full_experiment_pipeline(experiment_name: str, path_trained_models: str 
 
     os.makedirs(results_root, exist_ok=True)
     os.makedirs(times_root, exist_ok=True)
-
-    analysis_trained_log = True
 
     # ======================================
     # CONTEXT LENGTH FUNCTION
@@ -713,9 +710,6 @@ def run_full_experiment_pipeline(experiment_name: str, path_trained_models: str 
 
 
     print("\nAll processing completed.")
-
-    if analysis_trained_log:
-        run_analysis(base_dir=path_trained_models, output_dir=f"output_dir/{os.path.basename(path_trained_models)}",)
 
 
 # ======================================
