@@ -8,12 +8,13 @@ Time-MoE/model_time_moe4.py
 
 database/m5/datasets/**
 
+Master/MoE/RESULTADOS_COMPLETOS_ANP/**
+Master/MoE/RESULTADOS_COMPLETOS_BENCHMARK
+Master/MoE/RESULTADOS_FINAIS_BENCHMARK
 Master/MoE/bayesian_search_results.json
 Master/MoE/bayesian_search.db
 Master/MoE/*/*.txt
-Master/MoE/NovosExp/
-Master/MoE/Paper/
-Master/MoE/Paper_old/
+
 
 *.png
 *.pt
