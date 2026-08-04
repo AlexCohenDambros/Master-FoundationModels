@@ -15,6 +15,14 @@ Master/MoE/bayesian_search_results.json
 Master/MoE/bayesian_search.db
 Master/MoE/*/*.txt
 
+# Vendored baseline repos (UniTS / SimMTM): keep code, ignore weights, data and nested git
+Master/MoE/third_party/**/*.pth
+Master/MoE/third_party/**/*.ckpt
+Master/MoE/third_party/**/checkpoints/
+Master/MoE/third_party/**/dataset/
+Master/MoE/third_party/**/datasets/
+Master/MoE/third_party/**/.git/
+
 
 *.png
 *.pt

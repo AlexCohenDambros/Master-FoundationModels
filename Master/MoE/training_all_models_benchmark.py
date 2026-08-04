@@ -38,8 +38,8 @@ DATASETS = {
 # ======================================
 # HYPERPARAMETER GRID
 # ======================================
-TOP_K_LIST = [2]
-NORM_LIST = ["std"]
+TOP_K_LIST = [1, 2]
+NORM_LIST = ["std", "minmax"]
 USE_NOISE_LIST = [True]
 EPOCHS_LIST = [30, 60, 100]
 LR_LIST = [1e-4, 1e-3, 1e-5]

@@ -14,6 +14,9 @@ import timesfm
 from uni2ts.model.moirai import MoiraiForecast, MoiraiModule
 from setup.models.modeling_model import predict_from_model
 
+from setup.baselines.units_baseline import predict_units
+from setup.baselines.simmtm_baseline import predict_simmtm
+
 from sklearn.metrics import mean_absolute_percentage_error
 import numpy as np
 
@@ -44,16 +47,16 @@ os.environ["NCCL_IB_DISABLE"] = "1"
 BASE_TEST_PATH = "../benchmark_prepared_test"
 
 DATASETS = {
-    # "cif_2016_filtered":        {"subfolder": "horizon_12",  "horizon": 12, "context_length": 96},
-    # "etth_filtered":            {"subfolder": "horizon_36",  "horizon": 36, "context_length": 102},
-    # "hospital_filtered":        {"subfolder": "horizon_12",  "horizon": 12, "context_length": 60},
-    # "m3_monthly_filtered":      {"subfolder": "horizon_18",  "horizon": 18, "context_length": 98},
-    # "m4_monthly_filtered":      {"subfolder": "horizon_18",  "horizon": 18, "context_length": 51},
-    # "nn5_weekly_filtered":      {"subfolder": "horizon_8",   "horizon": 8,  "context_length": 97},
-    # "tourism_monthly_filtered": {"subfolder": "horizon_24",  "horizon": 24, "context_length": 285},
+    "cif_2016_filtered":        {"subfolder": "horizon_12",  "horizon": 12, "context_length": 96},
+    "etth_filtered":            {"subfolder": "horizon_36",  "horizon": 36, "context_length": 102},
+    "hospital_filtered":        {"subfolder": "horizon_12",  "horizon": 12, "context_length": 60},
+    "m3_monthly_filtered":      {"subfolder": "horizon_18",  "horizon": 18, "context_length": 98},
+    "m4_monthly_filtered":      {"subfolder": "horizon_18",  "horizon": 18, "context_length": 51},
+    "nn5_weekly_filtered":      {"subfolder": "horizon_8",   "horizon": 8,  "context_length": 97},
+    "tourism_monthly_filtered": {"subfolder": "horizon_24",  "horizon": 24, "context_length": 285},
     # "weather_filtered":         {"subfolder": "horizon_36",  "horizon": 36, "context_length": 454},
-    "fred_md_filtered":           {"subfolder": "horizon_12",  "horizon": 12, "context_length": 704},
-    "m5_filtered":                {"subfolder": "horizon_28",  "horizon": 28, "context_length": 1913},
+    # "fred_md_filtered":           {"subfolder": "horizon_12",  "horizon": 12, "context_length": 704},
+    # "m5_filtered":                {"subfolder": "horizon_28",  "horizon": 28, "context_length": 1913},
 }
 
 # ======================================
@@ -235,6 +238,26 @@ def run_full_experiment_pipeline(
         times_dict["Chronos-Bolt-Small"] = round(time.time() - start, 4)
 
         # ----------------------------------
+        # UniTS (zero-shot, checkpoint units_x128)
+        # ----------------------------------
+        print("Start UniTS...")
+        start = time.time()
+        try:
+            out = predict_units(
+                tensor_train_scaled,
+                horizon=horizon,
+                context_length=context_length,
+                device=device,
+            )
+            output_units = out.to(device) * std_vals + mean_vals
+        except Exception as e:
+            print(f"[ERROR] UniTS prediction failed: {e}", flush=True)
+            output_units = torch.zeros(
+                (tensor_train_scaled.shape[0], horizon), device=device
+            )
+        times_dict["UniTS"] = round(time.time() - start, 4)
+
+        # ----------------------------------
         # FM-MoE
         # ----------------------------------
         print("Start FM-MoE...")
@@ -267,6 +290,23 @@ def run_full_experiment_pipeline(
         # ==================================
         train_cpu = tensor_train.cpu().numpy()
         n_series  = train_cpu.shape[0]
+
+        # ----------------------------------
+        # SimMTM (pretrained encoder + finetune)
+        # ----------------------------------
+        print("Start SimMTM...")
+        start = time.time()
+        try:
+            output_simmtm = predict_simmtm(
+                train_cpu,
+                horizon=horizon,
+                context_length=context_length,
+                device=device,
+            ).to(device)
+        except Exception as e:
+            print(f"[ERROR] SimMTM prediction failed: {e}", flush=True)
+            output_simmtm = torch.zeros((n_series, horizon), device=device)
+        times_dict["SimMTM"] = round(time.time() - start, 4)
 
         # ----------------------------------
         # AutoETS
@@ -456,6 +496,8 @@ def run_full_experiment_pipeline(
             "TimesFM":            output_timesfm,
             "Moirai-Small":       output_moirai_small,
             "Chronos-Bolt-Small": output_chronos_bolt_small,
+            "UniTS":              output_units,
+            "SimMTM":             output_simmtm,
             "FM-MoE":             output_mymoe,
             "AutoETS":            output_autoets,
             "AutoARIMA":          output_autoarima,

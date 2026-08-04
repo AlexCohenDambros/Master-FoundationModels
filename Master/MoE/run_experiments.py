@@ -34,6 +34,9 @@ import timesfm
 from uni2ts.model.moirai import MoiraiForecast, MoiraiModule
 from setup.models.modeling_model import predict_from_model
 
+from setup.baselines.units_baseline import predict_units
+from setup.baselines.simmtm_baseline import predict_simmtm
+
 from sklearn.metrics import mean_absolute_percentage_error
 import numpy as np
 
@@ -217,6 +220,24 @@ def run_full_experiment_pipeline(experiment_name: str, path_trained_models: str 
         output_chronos_bolt_small = out.to(device) * std_vals + mean_vals
         times_dict["Chronos-Bolt-Small"] = round(time.time() - start, 4)
 
+        # ----------------------------------
+        # UniTS (zero-shot, checkpoint units_x128)
+        # ----------------------------------
+        start = time.time()
+        try:
+            out = predict_units(
+                tensor_train_scaled,
+                horizon=prediction_length,
+                context_length=context_length,
+                device=device,
+            )
+            output_units = out.to(device) * std_vals + mean_vals
+        except Exception as e:
+            print(f"[ERROR] UniTS prediction failed: {e}", flush=True)
+            output_units = torch.zeros(
+                (tensor_train_scaled.shape[0], prediction_length), device=device
+            )
+        times_dict["UniTS"] = round(time.time() - start, 4)
 
         # ----------------------------------
         # FM-MoE
@@ -262,6 +283,22 @@ def run_full_experiment_pipeline(experiment_name: str, path_trained_models: str 
 
         train_cpu = tensor_train.cpu().numpy()
         n_series = train_cpu.shape[0]
+
+        # -----------------------------
+        # SimMTM (pretrained encoder + finetune)
+        # -----------------------------
+        start = time.time()
+        try:
+            output_simmtm = predict_simmtm(
+                train_cpu,
+                horizon=prediction_length,
+                context_length=context_length,
+                device=device,
+            ).to(device)
+        except Exception as e:
+            print(f"[ERROR] SimMTM prediction failed: {e}", flush=True)
+            output_simmtm = torch.zeros((n_series, prediction_length), device=device)
+        times_dict["SimMTM"] = round(time.time() - start, 4)
 
         # -----------------------------
         # AutoETS
@@ -525,6 +562,8 @@ def run_full_experiment_pipeline(experiment_name: str, path_trained_models: str 
             "TimesFM":  output_timesfm,
             "Moirai":   output_moirai_small,
             "Chronos":  output_chronos_bolt_small,
+            "UniTS":    output_units,
+            "SimMTM":   output_simmtm,
             "FM-MoE":   output_mymoe,
             "AutoETS":        output_autoets,
             "AutoARIMA":      output_autoarima,
@@ -716,4 +755,17 @@ def run_full_experiment_pipeline(experiment_name: str, path_trained_models: str 
 # ENTRY POINT
 # ======================================
 if __name__ == "__main__":
-    run_full_experiment_pipeline()
+    # Execução direta (`python run_experiments.py`): usa uma configuração concreta,
+    # no mesmo estilo do __main__ de run_experiments_benchmark.py. Para varrer o
+    # grid completo de experimentos, rode `python training_all_models.py` (que
+    # treina os FM-MoE e chama este pipeline para cada combinação de hiperparâmetros).
+    #
+    # OBS: requer GPU (device="cuda") e os checkpoints FM-MoE já treinados em
+    # `path_trained_models`; sem eles, cada estado/ano é pulado ao carregar o FM-MoE.
+    run_full_experiment_pipeline(
+        experiment_name="model_topk_2_norm_std_noise_True_ep_30_lr_0.0001",
+        path_trained_models="trained_models/topk_2_norm_std_noise_True_ep_30_lr_0.0001",
+        top_k=2,
+        use_noise=True,
+        norm="std",
+    )
