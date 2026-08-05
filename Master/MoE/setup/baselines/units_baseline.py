@@ -26,9 +26,18 @@
 #     an internal length that is a multiple of 16 (>= horizon) and truncate.
 # =============================================================================
 import os
+import urllib.request
 import torch
 
 from ._vendor import import_model_class, UNITS_ROOT, UNITS_CKPT
+
+# URL do release oficial (units_x128). Override por env UNITS_CKPT_URL.
+_CKPT_URL = os.environ.get(
+    "UNITS_CKPT_URL",
+    "https://github.com/mims-harvard/UniTS/releases/download/ckpt/units_x128_pretrain_checkpoint.pth",
+)
+# O arquivo real tem ~96MB; menor que isso indica ponteiro/redirect/truncado.
+_MIN_CKPT_BYTES = 10_000_000
 
 _SEQ_LEN   = int(os.environ.get("UNITS_SEQ_LEN", "256"))   # múltiplo de 16; <= menor contexto
 _PATCH_LEN = 16
@@ -60,16 +69,71 @@ def _internal_pred_len(horizon):
     return (horizon // _PATCH_LEN + 2) * _PATCH_LEN
 
 
+def _valid_ckpt(path):
+    """True se o arquivo existe, tem tamanho plausível e começa com o magic ZIP (PK)."""
+    try:
+        if os.path.getsize(path) < _MIN_CKPT_BYTES:
+            return False
+        with open(path, "rb") as f:
+            return f.read(2) == b"PK"
+    except OSError:
+        return False
+
+
+def _ensure_checkpoint():
+    """
+    PT: Garante um checkpoint UniTS VÁLIDO em UNITS_CKPT. Se estiver ausente ou
+        corrompido (download truncado, ou página de redirect salva sem `curl -L`,
+        que faz o torch.load falhar com "filename 'storages' not found"), tenta
+        baixar do release oficial (download atômico via arquivo temporário).
+        Sem internet no nó, troca o erro críptico por uma mensagem acionável.
+    """
+    if _valid_ckpt(UNITS_CKPT):
+        return
+    os.makedirs(os.path.dirname(UNITS_CKPT), exist_ok=True)
+    if os.path.isfile(UNITS_CKPT):
+        print(f"[UniTS][WARN] checkpoint invalido/corrompido em {UNITS_CKPT}; "
+              f"rebaixando de {_CKPT_URL}", flush=True)
+    else:
+        print(f"[UniTS] checkpoint ausente; baixando (~96MB) de {_CKPT_URL}", flush=True)
+    tmp = f"{UNITS_CKPT}.tmp.{os.getpid()}"
+    try:
+        urllib.request.urlretrieve(_CKPT_URL, tmp)
+        if not _valid_ckpt(tmp):
+            raise IOError("arquivo baixado nao e um checkpoint valido (verifique URL/rede).")
+        os.replace(tmp, UNITS_CKPT)   # atomico
+        print(f"[UniTS] checkpoint salvo em {UNITS_CKPT}", flush=True)
+    except Exception as e:
+        try:
+            if os.path.isfile(tmp):
+                os.remove(tmp)
+        except OSError:
+            pass
+        # outro worker (loky) pode ter corrigido o arquivo enquanto tentavamos
+        if _valid_ckpt(UNITS_CKPT):
+            return
+        raise FileNotFoundError(
+            f"Checkpoint UniTS ausente/corrompido em {UNITS_CKPT} e o download automatico "
+            f"falhou ({e}). Baixe manualmente NUM NO COM INTERNET e confirme ~96MB:\n"
+            f"  curl -L -o {UNITS_CKPT} {_CKPT_URL}\n"
+            f"(sem o -L, o curl salva a pagina de redirect e o torch.load falha com "
+            f"\"filename 'storages' not found\")."
+        )
+
+
 def _load_states():
     global _clean_state, _raw_state
     if _clean_state is not None:
         return
-    if not os.path.isfile(UNITS_CKPT):
-        raise FileNotFoundError(
-            f"UniTS checkpoint not found at {UNITS_CKPT}. "
-            f"Download 'units_x128_pretrain_checkpoint.pth' from the UniTS 'ckpt' release."
+    _ensure_checkpoint()
+    try:
+        ck = torch.load(UNITS_CKPT, map_location="cpu", weights_only=False)
+    except Exception as e:
+        raise RuntimeError(
+            f"Falha ao ler o checkpoint UniTS em {UNITS_CKPT} ({e}). "
+            f"Provavelmente esta corrompido/truncado — rebaixe com: "
+            f"curl -L -o {UNITS_CKPT} {_CKPT_URL}"
         )
-    ck = torch.load(UNITS_CKPT, map_location="cpu", weights_only=False)
     sd = ck["student"] if isinstance(ck, dict) and "student" in ck else ck
     # remove prefixo DDP 'module.'
     sd = {(k[len("module."):] if k.startswith("module.") else k): v for k, v in sd.items()}

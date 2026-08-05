@@ -107,7 +107,7 @@ def run_full_experiment_pipeline(
     top_k: int = 2,
     use_noise: bool = True,
 ):
-    device = "cuda"
+    device = "cpu"
 
     results_root = os.path.join("results_benchmark", os.path.basename(path_trained_models))
     times_root   = os.path.join("times_benchmark",   os.path.basename(path_trained_models))
@@ -136,106 +136,106 @@ def run_full_experiment_pipeline(
 
         times_dict = {}
 
-        # ----------------------------------
-        # Time-MoE
-        # ----------------------------------
-        print("Start Time-MoE...")
-        start = time.time()
-        model = AutoModelForCausalLM.from_pretrained(
-            "Maple728/TimeMoE-200M", trust_remote_code=True, device_map=device
-        )
-        out = model.generate(tensor_train_scaled, max_new_tokens=horizon)
-        out = out[:, -horizon:]
-        output_time_moe_200 = out * std_vals + mean_vals
-        times_dict["Time-MoE200M"] = round(time.time() - start, 4)
+        # # ----------------------------------
+        # # Time-MoE
+        # # ----------------------------------
+        # print("Start Time-MoE...")
+        # start = time.time()
+        # model = AutoModelForCausalLM.from_pretrained(
+        #     "Maple728/TimeMoE-200M", trust_remote_code=True, device_map=device
+        # )
+        # out = model.generate(tensor_train_scaled, max_new_tokens=horizon)
+        # out = out[:, -horizon:]
+        # output_time_moe_200 = out * std_vals + mean_vals
+        # times_dict["Time-MoE200M"] = round(time.time() - start, 4)
 
-        # ----------------------------------
-        # Timer
-        # ----------------------------------
-        print("Start Timer...")
-        tensor_train_scaled = tensor_train_scaled.squeeze(-1)
-        tensor_train_scaled = tensor_train_scaled.to(device)
+        # # ----------------------------------
+        # # Timer
+        # # ----------------------------------
+        # print("Start Timer...")
+        # tensor_train_scaled = tensor_train_scaled.squeeze(-1)
+        # tensor_train_scaled = tensor_train_scaled.to(device)
 
-        start = time.time()
-        model = AutoModelForCausalLM.from_pretrained(
-            "thuml/sundial-base-128m",
-            trust_remote_code=True,
-            device_map=device,
-        )
-        out = model.generate(
-            tensor_train_scaled,
-            max_new_tokens=horizon,
-        )
-        out = torch.as_tensor(out.squeeze(1))
-        output_timer = out * std_vals + mean_vals
-        times_dict["Timer"] = round(time.time() - start, 4)
+        # start = time.time()
+        # model = AutoModelForCausalLM.from_pretrained(
+        #     "thuml/sundial-base-128m",
+        #     trust_remote_code=True,
+        #     device_map=device,
+        # )
+        # out = model.generate(
+        #     tensor_train_scaled,
+        #     max_new_tokens=horizon,
+        # )
+        # out = torch.as_tensor(out.squeeze(1))
+        # output_timer = out * std_vals + mean_vals
+        # times_dict["Timer"] = round(time.time() - start, 4)
 
-        # ----------------------------------
-        # TimesFM
-        # ----------------------------------
-        print("Start TimesFM...")
-        start = time.time()
-        model = timesfm.TimesFm(
-            hparams=timesfm.TimesFmHparams(
-                backend="gpu",
-                per_core_batch_size=32,
-                horizon_len=horizon,
-                num_layers=50,
-                use_positional_embedding=False,
-                context_len=2048,
-            ),
-            checkpoint=timesfm.TimesFmCheckpoint(
-                huggingface_repo_id="google/timesfm-2.0-500m-pytorch"
-            ),
-        )
+        # # ----------------------------------
+        # # TimesFM
+        # # ----------------------------------
+        # print("Start TimesFM...")
+        # start = time.time()
+        # model = timesfm.TimesFm(
+        #     hparams=timesfm.TimesFmHparams(
+        #         backend="gpu",
+        #         per_core_batch_size=32,
+        #         horizon_len=horizon,
+        #         num_layers=50,
+        #         use_positional_embedding=False,
+        #         context_len=2048,
+        #     ),
+        #     checkpoint=timesfm.TimesFmCheckpoint(
+        #         huggingface_repo_id="google/timesfm-2.0-500m-pytorch"
+        #     ),
+        # )
 
-        with torch.no_grad():
-            out, _ = model.forecast(tensor_train_scaled.cpu().numpy())
+        # with torch.no_grad():
+        #     out, _ = model.forecast(tensor_train_scaled.cpu().numpy())
 
-        output_timesfm = (
-            torch.from_numpy(out).float().to(device) * std_vals + mean_vals
-        )
-        times_dict["TimesFM"] = round(time.time() - start, 4)
+        # output_timesfm = (
+        #     torch.from_numpy(out).float().to(device) * std_vals + mean_vals
+        # )
+        # times_dict["TimesFM"] = round(time.time() - start, 4)
 
-        # ----------------------------------
-        # Moirai-Small
-        # ----------------------------------
-        print("Start Moirai...")
-        start = time.time()
-        model = MoiraiForecast(
-            module=MoiraiModule.from_pretrained("Salesforce/moirai-1.1-R-small"),
-            prediction_length=horizon,
-            context_length=context_length,
-            patch_size=16,
-            num_samples=100,
-            target_dim=1,
-            feat_dynamic_real_dim=0,
-            past_feat_dynamic_real_dim=0,
-        )
-        model.to(device)
-        outs = []
-        for i in range(tensor_train_scaled.size(0)):
-            past = tensor_train_scaled[i].unsqueeze(0).unsqueeze(-1)
-            obs  = torch.ones_like(past, dtype=torch.bool)
-            pad  = torch.zeros_like(past, dtype=torch.bool).squeeze(-1)
-            fc   = model(past_target=past, past_observed_target=obs, past_is_pad=pad)
-            outs.append(torch.as_tensor(fc.mean(dim=1)).reshape(1, -1))
-        output_moirai_small = torch.cat(outs) * std_vals + mean_vals
-        times_dict["Moirai-Small"] = round(time.time() - start, 4)
+        # # ----------------------------------
+        # # Moirai-Small
+        # # ----------------------------------
+        # print("Start Moirai...")
+        # start = time.time()
+        # model = MoiraiForecast(
+        #     module=MoiraiModule.from_pretrained("Salesforce/moirai-1.1-R-small"),
+        #     prediction_length=horizon,
+        #     context_length=context_length,
+        #     patch_size=16,
+        #     num_samples=100,
+        #     target_dim=1,
+        #     feat_dynamic_real_dim=0,
+        #     past_feat_dynamic_real_dim=0,
+        # )
+        # model.to(device)
+        # outs = []
+        # for i in range(tensor_train_scaled.size(0)):
+        #     past = tensor_train_scaled[i].unsqueeze(0).unsqueeze(-1)
+        #     obs  = torch.ones_like(past, dtype=torch.bool)
+        #     pad  = torch.zeros_like(past, dtype=torch.bool).squeeze(-1)
+        #     fc   = model(past_target=past, past_observed_target=obs, past_is_pad=pad)
+        #     outs.append(torch.as_tensor(fc.mean(dim=1)).reshape(1, -1))
+        # output_moirai_small = torch.cat(outs) * std_vals + mean_vals
+        # times_dict["Moirai-Small"] = round(time.time() - start, 4)
 
-        # ----------------------------------
-        # Chronos-Bolt-Small
-        # ----------------------------------
-        print("Start Chronos...")
-        start = time.time()
-        model = BaseChronosPipeline.from_pretrained(
-            "amazon/chronos-bolt-small", device_map=device, torch_dtype=torch.bfloat16
-        )
-        _, out = model.predict_quantiles(
-            context=tensor_train_scaled, prediction_length=horizon
-        )
-        output_chronos_bolt_small = out.to(device) * std_vals + mean_vals
-        times_dict["Chronos-Bolt-Small"] = round(time.time() - start, 4)
+        # # ----------------------------------
+        # # Chronos-Bolt-Small
+        # # ----------------------------------
+        # print("Start Chronos...")
+        # start = time.time()
+        # model = BaseChronosPipeline.from_pretrained(
+        #     "amazon/chronos-bolt-small", device_map=device, torch_dtype=torch.bfloat16
+        # )
+        # _, out = model.predict_quantiles(
+        #     context=tensor_train_scaled, prediction_length=horizon
+        # )
+        # output_chronos_bolt_small = out.to(device) * std_vals + mean_vals
+        # times_dict["Chronos-Bolt-Small"] = round(time.time() - start, 4)
 
         # ----------------------------------
         # UniTS (zero-shot, checkpoint units_x128)
@@ -257,33 +257,33 @@ def run_full_experiment_pipeline(
             )
         times_dict["UniTS"] = round(time.time() - start, 4)
 
-        # ----------------------------------
-        # FM-MoE
-        # ----------------------------------
-        print("Start FM-MoE...")
-        start = time.time()
-        model_path = os.path.join(path_trained_models, dataset_name, f"{experiment_name}.pt")
+        # # ----------------------------------
+        # # FM-MoE
+        # # ----------------------------------
+        # print("Start FM-MoE...")
+        # start = time.time()
+        # model_path = os.path.join(path_trained_models, dataset_name, f"{experiment_name}.pt")
 
-        if not os.path.isfile(model_path):
-            print(f"[WARN] FM-MoE model not found: {model_path}. Filling with zeros.", flush=True)
-            output_mymoe = torch.zeros((tensor_train_scaled.shape[0], horizon), device=device)
-        else:
-            try:
-                out = predict_from_model(
-                    model_path=model_path,
-                    series=tensor_train_scaled,
-                    horizon=horizon,
-                    context_length=context_length,
-                    top_k=top_k,
-                    use_noise="true" if use_noise else "false",
-                    device=device,
-                )
-                output_mymoe = out.to(device) * std_vals + mean_vals
-            except Exception as e:
-                print(f"[ERROR] FM-MoE prediction failed for {dataset_name}: {e}", flush=True)
-                output_mymoe = torch.zeros((tensor_train_scaled.shape[0], horizon), device=device)
+        # if not os.path.isfile(model_path):
+        #     print(f"[WARN] FM-MoE model not found: {model_path}. Filling with zeros.", flush=True)
+        #     output_mymoe = torch.zeros((tensor_train_scaled.shape[0], horizon), device=device)
+        # else:
+        #     try:
+        #         out = predict_from_model(
+        #             model_path=model_path,
+        #             series=tensor_train_scaled,
+        #             horizon=horizon,
+        #             context_length=context_length,
+        #             top_k=top_k,
+        #             use_noise="true" if use_noise else "false",
+        #             device=device,
+        #         )
+        #         output_mymoe = out.to(device) * std_vals + mean_vals
+        #     except Exception as e:
+        #         print(f"[ERROR] FM-MoE prediction failed for {dataset_name}: {e}", flush=True)
+        #         output_mymoe = torch.zeros((tensor_train_scaled.shape[0], horizon), device=device)
 
-        times_dict["FM-MoE"] = round(time.time() - start, 4)
+        # times_dict["FM-MoE"] = round(time.time() - start, 4)
 
         # ==================================
         # CLASSICAL / ML MODELS
@@ -308,211 +308,211 @@ def run_full_experiment_pipeline(
             output_simmtm = torch.zeros((n_series, horizon), device=device)
         times_dict["SimMTM"] = round(time.time() - start, 4)
 
-        # ----------------------------------
-        # AutoETS
-        # ----------------------------------
-        print("Start AutoETS...")
-        start = time.time()
-        preds = []
-        for i in range(n_series):
-            series = train_cpu[i]
-            df = pd.DataFrame({
-                "unique_id": "series",
-                "ds": np.arange(len(series)),
-                "y": series,
-            })
-            sf = StatsForecast(models=[AutoETS(season_length=1)], freq=1, n_jobs=1)
-            forecast = sf.forecast(df=df, h=horizon)
-            preds.append(forecast["AutoETS"].values)
-        output_autoets = torch.tensor(np.array(preds), device=device)
-        times_dict["AutoETS"] = round(time.time() - start, 4)
+        # # ----------------------------------
+        # # AutoETS
+        # # ----------------------------------
+        # print("Start AutoETS...")
+        # start = time.time()
+        # preds = []
+        # for i in range(n_series):
+        #     series = train_cpu[i]
+        #     df = pd.DataFrame({
+        #         "unique_id": "series",
+        #         "ds": np.arange(len(series)),
+        #         "y": series,
+        #     })
+        #     sf = StatsForecast(models=[AutoETS(season_length=1)], freq=1, n_jobs=1)
+        #     forecast = sf.forecast(df=df, h=horizon)
+        #     preds.append(forecast["AutoETS"].values)
+        # output_autoets = torch.tensor(np.array(preds), device=device)
+        # times_dict["AutoETS"] = round(time.time() - start, 4)
 
-        # ----------------------------------
-        # AutoARIMA
-        # ----------------------------------
-        print("Start AutoARIMA...")
-        start = time.time()
-        preds = []
-        for i in range(n_series):
-            series = train_cpu[i]
-            df = pd.DataFrame({
-                "unique_id": "series",
-                "ds": np.arange(len(series)),
-                "y": series,
-            })
-            sf = StatsForecast(models=[AutoARIMA(season_length=1)], freq=1, n_jobs=1)
-            forecast = sf.forecast(df=df, h=horizon)
-            preds.append(forecast["AutoARIMA"].values)
-        output_autoarima = torch.tensor(np.array(preds), device=device)
-        times_dict["AutoARIMA"] = round(time.time() - start, 4)
+        # # ----------------------------------
+        # # AutoARIMA
+        # # ----------------------------------
+        # print("Start AutoARIMA...")
+        # start = time.time()
+        # preds = []
+        # for i in range(n_series):
+        #     series = train_cpu[i]
+        #     df = pd.DataFrame({
+        #         "unique_id": "series",
+        #         "ds": np.arange(len(series)),
+        #         "y": series,
+        #     })
+        #     sf = StatsForecast(models=[AutoARIMA(season_length=1)], freq=1, n_jobs=1)
+        #     forecast = sf.forecast(df=df, h=horizon)
+        #     preds.append(forecast["AutoARIMA"].values)
+        # output_autoarima = torch.tensor(np.array(preds), device=device)
+        # times_dict["AutoARIMA"] = round(time.time() - start, 4)
 
-        # ----------------------------------
-        # SeasonalNaive
-        # ----------------------------------
-        print("Start SeasonalNaive...")
-        start = time.time()
-        preds = []
-        for i in range(n_series):
-            series = train_cpu[i]
-            df = pd.DataFrame({
-                "unique_id": "series",
-                "ds": np.arange(len(series)),
-                "y": series,
-            })
-            sf = StatsForecast(models=[SeasonalNaive(season_length=12)], freq=1, n_jobs=1)
-            forecast = sf.forecast(df=df, h=horizon)
-            preds.append(forecast["SeasonalNaive"].values)
-        output_seasonal_naive = torch.tensor(np.array(preds), device=device)
-        times_dict["SeasonalNaive"] = round(time.time() - start, 4)
+        # # ----------------------------------
+        # # SeasonalNaive
+        # # ----------------------------------
+        # print("Start SeasonalNaive...")
+        # start = time.time()
+        # preds = []
+        # for i in range(n_series):
+        #     series = train_cpu[i]
+        #     df = pd.DataFrame({
+        #         "unique_id": "series",
+        #         "ds": np.arange(len(series)),
+        #         "y": series,
+        #     })
+        #     sf = StatsForecast(models=[SeasonalNaive(season_length=12)], freq=1, n_jobs=1)
+        #     forecast = sf.forecast(df=df, h=horizon)
+        #     preds.append(forecast["SeasonalNaive"].values)
+        # output_seasonal_naive = torch.tensor(np.array(preds), device=device)
+        # times_dict["SeasonalNaive"] = round(time.time() - start, 4)
 
-        # ----------------------------------
-        # N-BEATS
-        # ----------------------------------
-        print("Start N-BEATS...")
-        start = time.time()
-        preds = []
-        for i in range(n_series):
-            series = TimeSeries.from_values(train_cpu[i])
-            model = NBEATSModel(
-                input_chunk_length=context_length - horizon,
-                output_chunk_length=horizon,
-                n_epochs=10,
-                batch_size=32,
-                random_state=42,
-            )
-            model.fit(series)
-            forecast = model.predict(horizon)
-            preds.append(forecast.values().flatten())
-        output_nbeats = torch.tensor(np.array(preds), device=device)
-        times_dict["NBEATS"] = round(time.time() - start, 4)
+        # # ----------------------------------
+        # # N-BEATS
+        # # ----------------------------------
+        # print("Start N-BEATS...")
+        # start = time.time()
+        # preds = []
+        # for i in range(n_series):
+        #     series = TimeSeries.from_values(train_cpu[i])
+        #     model = NBEATSModel(
+        #         input_chunk_length=context_length - horizon,
+        #         output_chunk_length=horizon,
+        #         n_epochs=10,
+        #         batch_size=32,
+        #         random_state=42,
+        #     )
+        #     model.fit(series)
+        #     forecast = model.predict(horizon)
+        #     preds.append(forecast.values().flatten())
+        # output_nbeats = torch.tensor(np.array(preds), device=device)
+        # times_dict["NBEATS"] = round(time.time() - start, 4)
 
-        # ----------------------------------
-        # Random Forest
-        # ----------------------------------
-        print("Start RF...")
-        start = time.time()
-        preds = []
-        for i in range(n_series):
-            series = train_cpu[i]
-            X, y = [], []
-            for t in range(context_length - horizon):
-                X.append(series[t:t + horizon])
-                y.append(series[t + horizon])
-            X = np.array(X)
-            y = np.array(y)
-            model = RandomForestRegressor(n_estimators=200)
-            model.fit(X, y)
-            window = series[-horizon:].copy()
-            forecast = []
-            for _ in range(horizon):
-                pred = model.predict(window.reshape(1, -1))[0]
-                forecast.append(pred)
-                window = np.roll(window, -1)
-                window[-1] = pred
-            preds.append(forecast)
-        output_rf = torch.tensor(np.array(preds), device=device)
-        times_dict["RandomForest"] = round(time.time() - start, 4)
+        # # ----------------------------------
+        # # Random Forest
+        # # ----------------------------------
+        # print("Start RF...")
+        # start = time.time()
+        # preds = []
+        # for i in range(n_series):
+        #     series = train_cpu[i]
+        #     X, y = [], []
+        #     for t in range(context_length - horizon):
+        #         X.append(series[t:t + horizon])
+        #         y.append(series[t + horizon])
+        #     X = np.array(X)
+        #     y = np.array(y)
+        #     model = RandomForestRegressor(n_estimators=200)
+        #     model.fit(X, y)
+        #     window = series[-horizon:].copy()
+        #     forecast = []
+        #     for _ in range(horizon):
+        #         pred = model.predict(window.reshape(1, -1))[0]
+        #         forecast.append(pred)
+        #         window = np.roll(window, -1)
+        #         window[-1] = pred
+        #     preds.append(forecast)
+        # output_rf = torch.tensor(np.array(preds), device=device)
+        # times_dict["RandomForest"] = round(time.time() - start, 4)
 
-        # ----------------------------------
-        # XGBoost
-        # ----------------------------------
-        print("Start XGBoost...")
-        start = time.time()
-        preds = []
-        for i in range(n_series):
-            series = train_cpu[i]
-            X, y = [], []
-            for t in range(context_length - horizon):
-                X.append(series[t:t + horizon])
-                y.append(series[t + horizon])
-            X = np.array(X)
-            y = np.array(y)
-            model = XGBRegressor(n_estimators=200, max_depth=6, learning_rate=0.05)
-            model.fit(X, y)
-            window = series[-horizon:].copy()
-            forecast = []
-            for _ in range(horizon):
-                pred = model.predict(window.reshape(1, -1))[0]
-                forecast.append(pred)
-                window = np.roll(window, -1)
-                window[-1] = pred
-            preds.append(forecast)
-        output_xgb = torch.tensor(np.array(preds), device=device)
-        times_dict["XGBRegressor"] = round(time.time() - start, 4)
+        # # ----------------------------------
+        # # XGBoost
+        # # ----------------------------------
+        # print("Start XGBoost...")
+        # start = time.time()
+        # preds = []
+        # for i in range(n_series):
+        #     series = train_cpu[i]
+        #     X, y = [], []
+        #     for t in range(context_length - horizon):
+        #         X.append(series[t:t + horizon])
+        #         y.append(series[t + horizon])
+        #     X = np.array(X)
+        #     y = np.array(y)
+        #     model = XGBRegressor(n_estimators=200, max_depth=6, learning_rate=0.05)
+        #     model.fit(X, y)
+        #     window = series[-horizon:].copy()
+        #     forecast = []
+        #     for _ in range(horizon):
+        #         pred = model.predict(window.reshape(1, -1))[0]
+        #         forecast.append(pred)
+        #         window = np.roll(window, -1)
+        #         window[-1] = pred
+        #     preds.append(forecast)
+        # output_xgb = torch.tensor(np.array(preds), device=device)
+        # times_dict["XGBRegressor"] = round(time.time() - start, 4)
 
-        # ----------------------------------
-        # PatchTST
-        # ----------------------------------
-        nf_input_size = max(8, min(context_length // 2, context_length - horizon - 1))
+        # # ----------------------------------
+        # # PatchTST
+        # # ----------------------------------
+        # nf_input_size = max(8, min(context_length // 2, context_length - horizon - 1))
 
-        print(f"Start PatchTST... (input_size={nf_input_size}, h={horizon})")
-        start = time.time()
-        panel_df = pd.DataFrame({
-            "unique_id": np.repeat(np.arange(n_series), context_length),
-            "ds":        np.tile(np.arange(context_length), n_series),
-            "y":         train_cpu.flatten(),
-        })
-        nf_pt = NeuralForecast(
-            models=[NF_PatchTST(input_size=nf_input_size, h=horizon, max_steps=100)],
-            freq=1,
-        )
-        nf_pt.fit(panel_df, val_size=0)
-        fc_pt = nf_pt.predict()
-        if not isinstance(fc_pt, pd.DataFrame):
-            fc_pt = fc_pt.to_pandas()
-        fc_pt = fc_pt.sort_values(["unique_id", "ds"])
-        output_patchtst = torch.tensor(
-            fc_pt["PatchTST"].to_numpy().reshape(n_series, horizon),
-            dtype=torch.float32, device=device,
-        )
-        times_dict["PatchTST"] = round(time.time() - start, 4)
+        # print(f"Start PatchTST... (input_size={nf_input_size}, h={horizon})")
+        # start = time.time()
+        # panel_df = pd.DataFrame({
+        #     "unique_id": np.repeat(np.arange(n_series), context_length),
+        #     "ds":        np.tile(np.arange(context_length), n_series),
+        #     "y":         train_cpu.flatten(),
+        # })
+        # nf_pt = NeuralForecast(
+        #     models=[NF_PatchTST(input_size=nf_input_size, h=horizon, max_steps=100)],
+        #     freq=1,
+        # )
+        # nf_pt.fit(panel_df, val_size=0)
+        # fc_pt = nf_pt.predict()
+        # if not isinstance(fc_pt, pd.DataFrame):
+        #     fc_pt = fc_pt.to_pandas()
+        # fc_pt = fc_pt.sort_values(["unique_id", "ds"])
+        # output_patchtst = torch.tensor(
+        #     fc_pt["PatchTST"].to_numpy().reshape(n_series, horizon),
+        #     dtype=torch.float32, device=device,
+        # )
+        # times_dict["PatchTST"] = round(time.time() - start, 4)
 
-        # ----------------------------------
-        # iTransformer
-        # ----------------------------------
-        print(f"Start iTransformer... (input_size={nf_input_size}, h={horizon})")
-        start = time.time()
-        nf_it = NeuralForecast(
-            models=[NF_iTransformer(input_size=nf_input_size, h=horizon, n_series=n_series, max_steps=100)],
-            freq=1,
-        )
-        nf_it.fit(panel_df, val_size=0)
-        fc_it = nf_it.predict()
-        if not isinstance(fc_it, pd.DataFrame):
-            fc_it = fc_it.to_pandas()
-        fc_it = fc_it.sort_values(["unique_id", "ds"])
-        output_itransformer = torch.tensor(
-            fc_it["iTransformer"].to_numpy().reshape(n_series, horizon),
-            dtype=torch.float32, device=device,
-        )
-        times_dict["iTransformer"] = round(time.time() - start, 4)
+        # # ----------------------------------
+        # # iTransformer
+        # # ----------------------------------
+        # print(f"Start iTransformer... (input_size={nf_input_size}, h={horizon})")
+        # start = time.time()
+        # nf_it = NeuralForecast(
+        #     models=[NF_iTransformer(input_size=nf_input_size, h=horizon, n_series=n_series, max_steps=100)],
+        #     freq=1,
+        # )
+        # nf_it.fit(panel_df, val_size=0)
+        # fc_it = nf_it.predict()
+        # if not isinstance(fc_it, pd.DataFrame):
+        #     fc_it = fc_it.to_pandas()
+        # fc_it = fc_it.sort_values(["unique_id", "ds"])
+        # output_itransformer = torch.tensor(
+        #     fc_it["iTransformer"].to_numpy().reshape(n_series, horizon),
+        #     dtype=torch.float32, device=device,
+        # )
+        # times_dict["iTransformer"] = round(time.time() - start, 4)
 
         # ==================================
         # METRICS
         # ==================================
         model_outputs = {
-            "Time-MoE":           output_time_moe_200,
-            "Timer":              output_timer,
-            "TimesFM":            output_timesfm,
-            "Moirai-Small":       output_moirai_small,
-            "Chronos-Bolt-Small": output_chronos_bolt_small,
+            # "Time-MoE":           output_time_moe_200,
+            # "Timer":              output_timer,
+            # "TimesFM":            output_timesfm,
+            # "Moirai-Small":       output_moirai_small,
+            # "Chronos-Bolt-Small": output_chronos_bolt_small,
             "UniTS":              output_units,
             "SimMTM":             output_simmtm,
-            "FM-MoE":             output_mymoe,
-            "AutoETS":            output_autoets,
-            "AutoARIMA":          output_autoarima,
-            "SeasonalNaive":      output_seasonal_naive,
-            "NBEATS":             output_nbeats,
-            "RandomForest":       output_rf,
-            "XGBRegressor":       output_xgb,
-            "PatchTST":           output_patchtst,
-            "iTransformer":       output_itransformer,
+            # "FM-MoE":             output_mymoe,
+            # "AutoETS":            output_autoets,
+            # "AutoARIMA":          output_autoarima,
+            # "SeasonalNaive":      output_seasonal_naive,
+            # "NBEATS":             output_nbeats,
+            # "RandomForest":       output_rf,
+            # "XGBRegressor":       output_xgb,
+            # "PatchTST":           output_patchtst,
+            # "iTransformer":       output_itransformer,
         }
 
         ensemble_models  = {k: v for k, v in model_outputs.items() if k != "FM-MoE"}
         stacked_outputs  = torch.stack(list(ensemble_models.values()), dim=0)
         ensemble_output  = torch.mean(stacked_outputs, dim=0)
-        model_outputs["Ensemble"] = ensemble_output
+        # model_outputs["Ensemble"] = ensemble_output
 
         results = {}
         for name, preds in model_outputs.items():
